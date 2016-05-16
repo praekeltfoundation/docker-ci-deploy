@@ -26,38 +26,94 @@ def _strip_image_registry(image):
     return image
 
 
-def _docker_cmd(*cmds, **kwargs):
-    """ Run a Docker command or print it if ``dry_run=True``. """
-    if kwargs.get('dry_run', False):
-        if 'obfuscated' in kwargs:
-            cmds = kwargs['obfuscated']
-        print(' '.join(('docker',) + cmds))
-    else:
-        subprocess.check_output(('docker',) + cmds)
+class DockerCiDeployRunner(object):
 
+    def __init__(self, dry_run=False, verbose=False):
+        self.dry_run = dry_run
+        self.verbose = verbose
 
-def docker_tag(in_tag, out_tag, **kwargs):
-    """ Run ``docker tag`` with the given tags. """
-    _docker_cmd('tag', in_tag, out_tag, **kwargs)
+    def _log(self, *args, **kwargs):
+        if kwargs.get('if_verbose', False):
+            if self.verbose:
+                print(*args)
+        else:
+            print(*args)
 
+    def _docker_cmd(self, *cmds, **kwargs):
+        """ Run a Docker command or print it if ``dry_run=True``. """
+        if self.dry_run:
+            if 'obfuscated' in kwargs:
+                cmds = kwargs['obfuscated']
+            self._log(*(('docker',) + cmds))
+        else:
+            subprocess.check_output(('docker',) + cmds)
 
-def docker_login(username, password, registry, **kwargs):
-    """ Run ``docker login`` with the given credentials. """
-    cmd = [
-        'login',
-        '--username', username,
-        '--password', password,
-        registry,
-    ]
-    obfuscated = list(cmd)
-    obfuscated[4] = '<password>'
-    kwargs['obfuscated'] = tuple(obfuscated)
-    _docker_cmd(*cmd, **kwargs)
+    def docker_tag(self, in_tag, out_tag):
+        """ Run ``docker tag`` with the given tags. """
+        self._docker_cmd('tag', in_tag, out_tag)
 
+    def docker_login(self, username, password, registry):
+        """ Run ``docker login`` with the given credentials. """
+        cmd = [
+            'login',
+            '--username', username,
+            '--password', password,
+            registry,
+        ]
+        obfuscated = list(cmd)
+        obfuscated[4] = '<password>'
+        self._docker_cmd(*cmd, obfuscated=tuple(obfuscated))
 
-def docker_push(tag, **kwargs):
-    """ Run ``docker push`` with the given tag. """
-    _docker_cmd('push', tag, **kwargs)
+    def docker_push(self, tag):
+        """ Run ``docker push`` with the given tag. """
+        self._docker_cmd('push', tag)
+
+    def run(self, image, tags=None, login=None, registry=None):
+        """
+        Run the script - tag, login and push as necessary.
+
+        :param image:
+            The full source image tag.
+        :param tags:
+            A list of tags to tag the image with or None if no new tags are
+            required.
+        :param login:
+            Login details for the Docker registry in the form
+            <username>:<password>.
+        :param registry:
+            The address to the Docker registry host.
+        """
+        # Build list of tags to push with provided tags
+        push_tags = []
+        if tags is not None:
+            stripped_tag = _strip_image_tag(image)
+            for tag in tags:
+                push_tags.append('%s:%s' % (stripped_tag, tag,))
+        else:
+            push_tags = [image]
+
+        # Update tags with registry host information
+        if registry is not None:
+            for i, tag in enumerate(push_tags):
+                stripped_tag = _strip_image_registry(tag)
+                push_tags[i] = '%s/%s' % (registry, stripped_tag,)
+
+        # Actually tag the image
+        for tag in push_tags:
+            self._log('Tagging "%s" as "%s"...' % (image, tag,),
+                      if_verbose=True)
+            self.docker_tag(image, tag)
+
+        # Login if login details provided
+        if login is not None:
+            username, password = login.split(':', 2)
+            self._log('Logging in as "%s"...' % (username,), if_verbose=True)
+            self.docker_login(username, password, registry)
+
+        # Finally, push the tags
+        for tag in push_tags:
+            self._log('Pushing tag "%s"...' % (tag,), if_verbose=True)
+            self.docker_push(tag)
 
 
 def main():
@@ -75,46 +131,15 @@ def main():
                         help='Verbose logging output')
     parser.add_argument('--dry-run', action='store_true',
                         help='Print but do not execute any Docker commands')
-    parser.add_argument('image',
-                        help='Tag (full image name) to push')
+    parser.add_argument('image', help='Tag (full image name) to push')
 
     args = parser.parse_args()
 
-    # Build list of tags to push with provided tags
-    push_tags = []
-    if args.tag is not None:
-        tags = chain.from_iterable(args.tag)  # Flatten tags array
-        stripped_tag = _strip_image_tag(args.image)
-        for tag in tags:
-            push_tags.append('%s:%s' % (stripped_tag, tag,))
-    else:
-        push_tags = [args.image]
+    runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose)
+    # Flatten list of tags
+    tags = chain.from_iterable(args.tag) if args.tag is not None else None
+    runner.run(args.image, tags=tags, login=args.login, registry=args.registry)
 
-    # Update tags with registry host information
-    if args.registry is not None:
-        for i, tag in enumerate(push_tags):
-            stripped_tag = _strip_image_registry(tag)
-            push_tags[i] = '%s/%s' % (args.registry, stripped_tag,)
-
-    # Actually tag the image if necessary
-    if len(push_tags) != 1 or push_tags[0] != args.image:
-        for tag in push_tags:
-            if args.verbose:
-                print('Tagging "%s" as "%s"...' % (args.image, tag,))
-            docker_tag(args.image, tag, dry_run=args.dry_run)
-
-    # Login if login details provided
-    if args.login is not None:
-        username, password = args.login.split(':', 2)
-        if args.verbose:
-            print('Logging in as "%s"...' % (username,))
-        docker_login(username, password, args.registry, dry_run=args.dry_run)
-
-    # Finally, push the tags
-    for tag in push_tags:
-        if args.verbose:
-            print('Pushing tag "%s"...' % (tag,))
-        docker_push(tag, dry_run=args.dry_run)
 
 if __name__ == "__main__":
     main()
