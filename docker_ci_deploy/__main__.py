@@ -39,14 +39,14 @@ class DockerCiDeployRunner(object):
         else:
             print(*args)
 
-    def _docker_cmd(self, *cmds, **kwargs):
+    def _docker_cmd(self, *args, **kwargs):
         """ Run a Docker command or print it if ``dry_run=True``. """
         if self.dry_run:
             if 'obfuscated' in kwargs:
-                cmds = kwargs['obfuscated']
-            self._log(*(('docker',) + cmds))
+                args = kwargs['obfuscated']
+            self._log(*(('docker',) + args))
         else:
-            subprocess.check_output(('docker',) + cmds)
+            subprocess.check_output(('docker',) + args)
 
     def docker_tag(self, in_tag, out_tag):
         """ Run ``docker tag`` with the given tags. """
