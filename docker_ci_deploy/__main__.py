@@ -4,6 +4,7 @@ from __future__ import print_function
 import argparse
 import re
 import subprocess
+import sys
 
 from itertools import chain
 
@@ -116,7 +117,7 @@ class DockerCiDeployRunner(object):
             self.docker_push(tag)
 
 
-def main():
+def main(raw_args=sys.argv[1:]):
     parser = argparse.ArgumentParser(
         description='Tag and push Docker images to a registry.')
     parser.add_argument('-t', '--tag', nargs='*',
@@ -133,7 +134,7 @@ def main():
                         help='Print but do not execute any Docker commands')
     parser.add_argument('image', help='Tag (full image name) to push')
 
-    args = parser.parse_args()
+    args = parser.parse_args(raw_args)
 
     runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose)
     # Flatten list of tags
