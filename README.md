@@ -23,13 +23,13 @@ This will simply push the image `my-image:latest` to the default registry (https
 #### Logging in
 On a CI service you are unlikely to be logged in to the registry. You can login using the `--login` parameter, which takes an argument of the form `<username>:<password>`.
 ```
-docker-ci-deploy --login janedoe:pa$$word my-image:latest
+docker-ci-deploy --login 'janedoe:pa$$word' my-image:latest
 ```
 The script will then login before pushing the image.
 
 #### Tagging
 ```
-docker-ci-deploy --login janedoe:pa$$word \
+docker-ci-deploy --login 'janedoe:pa$$word' \
   --tag alpine --tag $(git rev-parse --short HEAD) my-image:latest
 
 ```
@@ -37,7 +37,7 @@ This will result in the tags `my-image:alpine` and `my-image:eea981f` (for examp
 
 #### Custom registry
 ```
-docker-ci-deploy --login janedoe:pa$$word \
+docker-ci-deploy --login 'janedoe:pa$$word' \
   --tag alpine --tag $(git rev-parse --short HEAD) \
   --registry my-registry.example.com:5000 \
   my-image:latest
