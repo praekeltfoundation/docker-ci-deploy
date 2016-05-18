@@ -257,4 +257,4 @@ class TestDockerCiDeployRunner(object):
         e = e_info.value
         assert e.cmd == [exit_1, 'push', 'test-image']
         assert e.returncode == 1
-        assert e.output == 'errored\n'
+        assert e.output == b'errored\n'
