@@ -1,2 +1,2 @@
 flake8
-pytest
+pytest>=2.8.0
