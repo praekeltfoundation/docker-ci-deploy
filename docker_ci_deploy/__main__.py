@@ -29,25 +29,33 @@ def _strip_image_registry(image):
 
 class DockerCiDeployRunner(object):
 
-    def __init__(self, dry_run=False, verbose=False):
+    def __init__(self, executable='docker', dry_run=False, verbose=False):
+        self.executable = executable
         self.dry_run = dry_run
         self.verbose = verbose
 
     def _log(self, *args, **kwargs):
-        if kwargs.get('if_verbose', False):
-            if self.verbose:
-                print(*args)
-        else:
-            print(*args)
+        if kwargs.get('if_verbose', False) and not self.verbose:
+            return
+        print(*args, **kwargs)
 
-    def _docker_cmd(self, *args, **kwargs):
-        """ Run a Docker command or print it if ``dry_run=True``. """
+    def _docker_cmd(self, *args):
         if self.dry_run:
-            if 'obfuscated' in kwargs:
-                args = kwargs['obfuscated']
-            self._log(*(('docker',) + args))
-        else:
-            subprocess.check_output(('docker',) + args)
+            self._log(*args)
+            return
+
+        args = [self.executable] + list(args)
+        process = subprocess.Popen(args,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+
+        out, err = process.communicate()
+        retcode = process.poll()
+        if retcode:
+            raise subprocess.CalledProcessError(retcode, args, output=out)
+
+        self._log(out)
+        self._log(err, file=sys.stderr)
 
     def docker_tag(self, in_tag, out_tag):
         """ Run ``docker tag`` with the given tags. """
@@ -58,12 +66,10 @@ class DockerCiDeployRunner(object):
         cmd = [
             'login',
             '--username', username,
-            '--password', password,
+            '--password', password if not self.dry_run else '<password>',
             registry,
         ]
-        obfuscated = list(cmd)
-        obfuscated[4] = '<password>'
-        self._docker_cmd(*cmd, obfuscated=tuple(obfuscated))
+        self._docker_cmd(*cmd)
 
     def docker_push(self, tag):
         """ Run ``docker push`` with the given tag. """
@@ -101,9 +107,10 @@ class DockerCiDeployRunner(object):
 
         # Actually tag the image
         for tag in push_tags:
-            self._log('Tagging "%s" as "%s"...' % (image, tag,),
-                      if_verbose=True)
-            self.docker_tag(image, tag)
+            if tag != image:
+                self._log('Tagging "%s" as "%s"...' % (image, tag,),
+                          if_verbose=True)
+                self.docker_tag(image, tag)
 
         # Login if login details provided
         if login is not None:
@@ -132,6 +139,9 @@ def main(raw_args=sys.argv[1:]):
                         help='Verbose logging output')
     parser.add_argument('--dry-run', action='store_true',
                         help='Print but do not execute any Docker commands')
+    parser.add_argument('--executable', nargs='?', default='docker',
+                        help='Path to the Docker client executable (default: '
+                             '%(default)s)')
     parser.add_argument('image', help='Tag (full image name) to push')
 
     args = parser.parse_args(raw_args)
