@@ -1,8 +1,21 @@
+# -*- coding: utf-8 -*-
 import stat
 
 import pytest
 
 from docker_ci_deploy.__main__ import DockerCiDeployRunner
+
+
+def assert_output_lines(capfd, stdout_lines, stderr_lines=[]):
+    out, err = capfd.readouterr()
+
+    out_lines = out.split('\n')
+    assert out_lines.pop() == ''
+    assert out_lines == stdout_lines
+
+    err_lines = err.split('\n')
+    assert err_lines.pop() == ''
+    assert err_lines == stderr_lines
 
 
 class TestDockerCiDeployRunner(object):
@@ -13,18 +26,16 @@ class TestDockerCiDeployRunner(object):
         path.chmod(path.stat().mode | stat.S_IEXEC)
         return str(path)
 
-    def test_defaults(self, capsys, echo_script):
+    def test_defaults(self, capfd, echo_script):
         """
         When the runner is run with defaults, the image should be pushed.
         """
         runner = DockerCiDeployRunner(executable=echo_script)
         runner.run('test-image')
 
-        out, err = capsys.readouterr()
-        assert out == 'push test-image\n'
-        assert err == ''
+        assert_output_lines(capfd, ['push test-image'])
 
-    def test_tags(self, capsys, echo_script):
+    def test_tags(self, capfd, echo_script):
         """
         When tags are provided to the runner, the image should be tagged and
         each tag should be pushed.
@@ -32,14 +43,9 @@ class TestDockerCiDeployRunner(object):
         runner = DockerCiDeployRunner(executable=echo_script)
         runner.run('test-image', tags=['abc', 'def'])
 
-        out, err = capsys.readouterr()
-        out_lines = out.split('\n')
-
-        assert out_lines.pop(0) == 'tag test-image test-image:abc'
-        assert out_lines.pop(0) == 'tag test-image test-image:def'
-        assert out_lines.pop(0) == 'push test-image:abc'
-        assert out_lines.pop(0) == 'push test-image:def'
-        assert out_lines.pop(0) == ''
-        assert len(out_lines) == 0
-
-        assert err == ''
+        assert_output_lines(capfd, [
+            'tag test-image test-image:abc',
+            'tag test-image test-image:def',
+            'push test-image:abc',
+            'push test-image:def'
+        ])
