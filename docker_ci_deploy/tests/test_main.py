@@ -56,8 +56,7 @@ def test_strip_image_tag_unparsable():
     """ Given a malformed image tag, strip_image_tag should throw an error. """
     image = 'this:is:invalid/user:test/name:tag/'
     with pytest.raises(RuntimeError) as e_info:
-        stripped_tag = strip_image_tag(image)
-        print(stripped_tag)
+        strip_image_tag(image)
 
     assert str(e_info.value) == 'Unable to parse tag "%s"' % (image,)
 
