@@ -30,6 +30,8 @@ def _strip_image_registry(image):
 
 class DockerCiDeployRunner(object):
 
+    logger = print
+
     def __init__(self, executable='docker', dry_run=False, verbose=False):
         self.executable = executable
         self.dry_run = dry_run
@@ -38,14 +40,14 @@ class DockerCiDeployRunner(object):
     def _log(self, *args, **kwargs):
         if kwargs.get('if_verbose', False) and not self.verbose:
             return
-        print(*args)
+        self.logger(*args)
 
     def _docker_cmd(self, *args):
+        args = [self.executable] + list(args)
         if self.dry_run:
             self._log(*args)
             return
 
-        args = [self.executable] + list(args)
         process = subprocess.Popen(args,
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE)

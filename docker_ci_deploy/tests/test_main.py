@@ -143,3 +143,42 @@ class TestDockerCiDeployRunner(object):
             'push registry.example.com:5000/test-image:latest',
             'push registry.example.com:5000/test-image:best'
         ])
+
+    def test_dry_run(self, capfd, echo_script):
+        """
+        When running in dry-run mode, the expected commands should be logged
+        and no other output should be produced as no subprocesses should be
+        run.
+        """
+        runner = DockerCiDeployRunner(executable=echo_script, dry_run=True)
+        logs = []
+        runner.logger = lambda *args: logs.append(' '.join(args))
+        runner.run('test-image:tag', tags=['latest'])
+
+        expected = [
+            'tag test-image:tag test-image:latest',
+            'push test-image:latest'
+        ]
+        expected = ['%s %s' % (echo_script, s,) for s in expected]
+        assert logs == expected
+
+        assert_output_lines(capfd, [], [])
+
+    def test_dry_run_obfuscates_password(self, capfd, echo_script):
+        """
+        When running in dry-run mode and login details are provided, the user's
+        password should not be logged.
+        """
+        runner = DockerCiDeployRunner(executable=echo_script, dry_run=True)
+        logs = []
+        runner.logger = lambda *args: logs.append(' '.join(args))
+        runner.run('test-image', login='janedoe:pa$$word')
+
+        expected = [
+            'login --username janedoe --password <password>',
+            'push test-image'
+        ]
+        expected = ['%s %s' % (echo_script, s,) for s in expected]
+        assert logs == expected
+
+        assert_output_lines(capfd, [], [])
