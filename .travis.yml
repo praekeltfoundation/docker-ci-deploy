@@ -10,7 +10,11 @@ install:
   - pip install --upgrade pip
   - pip install -e .
   - pip install -r requirements-dev.txt
+  - pip install codecov
 
 script:
   - flake8 docker_ci_deploy
-  - py.test docker_ci_deploy
+  - py.test --cov docker_ci_deploy docker_ci_deploy
+
+after_success:
+  - codecov
