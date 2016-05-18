@@ -49,3 +49,76 @@ class TestDockerCiDeployRunner(object):
             'push test-image:abc',
             'push test-image:def'
         ])
+
+    def test_tag_replacement(self, capfd, echo_script):
+        """
+        When tags are provided to the runner and the provided image has a tag,
+        that tag should be tagged with the new tag, and the the new tag should
+        be pushed.
+        """
+        runner = DockerCiDeployRunner(executable=echo_script)
+        runner.run('test-image:abc', tags=['def'])
+
+        assert_output_lines(capfd, [
+            'tag test-image:abc test-image:def',
+            'push test-image:def'
+        ])
+
+    def test_registry(self, capfd, echo_script):
+        """
+        When a registry is provided to the runner, the image should be tagged
+        with the registry and pushed.
+        """
+        runner = DockerCiDeployRunner(executable=echo_script)
+        runner.run('test-image', registry='registry.example.com:5000')
+
+        assert_output_lines(capfd, [
+            'tag test-image registry.example.com:5000/test-image',
+            'push registry.example.com:5000/test-image'
+        ])
+
+    def test_tags_and_registry(self, capfd, echo_script):
+        """
+        When tags and a registry are provided to the runner, the image should
+        be tagged with both the tags and the registry and pushed.
+        """
+        runner = DockerCiDeployRunner(executable=echo_script)
+        runner.run('test-image:ghi', tags=['abc', 'def'],
+                   registry='registry.example.com:5000')
+
+        assert_output_lines(capfd, [
+            'tag test-image:ghi registry.example.com:5000/test-image:abc',
+            'tag test-image:ghi registry.example.com:5000/test-image:def',
+            'push registry.example.com:5000/test-image:abc',
+            'push registry.example.com:5000/test-image:def'
+        ])
+
+    def test_login(self, capfd, echo_script):
+        """
+        When login details are provided to the runner, a login request should
+        be made and the image should be pushed.
+        """
+        runner = DockerCiDeployRunner(executable=echo_script)
+        runner.run('test-image', login='janedoe:pa$$word')
+
+        assert_output_lines(capfd, [
+            'login --username janedoe --password pa$$word',
+            'push test-image'
+        ])
+
+    def test_registry_and_login(self, capfd, echo_script):
+        """
+        When a registry and login details are provided to the runner, the image
+        should be tagged with the registry and a login request should be made
+        to the specified registry. The image should be pushed.
+        """
+        runner = DockerCiDeployRunner(executable=echo_script)
+        runner.run('test-image', registry='registry.example.com:5000',
+                   login='janedoe:pa$$word')
+
+        assert_output_lines(capfd, [
+            'tag test-image registry.example.com:5000/test-image',
+            'login --username janedoe --password pa$$word '
+            'registry.example.com:5000',
+            'push registry.example.com:5000/test-image'
+        ])

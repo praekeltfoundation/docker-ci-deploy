@@ -68,8 +68,9 @@ class DockerCiDeployRunner(object):
             'login',
             '--username', username,
             '--password', password if not self.dry_run else '<password>',
-            registry,
         ]
+        if registry is not None:
+            cmd.append(registry)
         self._docker_cmd(*cmd)
 
     def docker_push(self, tag):
