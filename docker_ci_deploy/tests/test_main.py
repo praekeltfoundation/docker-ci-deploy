@@ -3,6 +3,8 @@ import stat
 
 import pytest
 
+from subprocess import CalledProcessError
+
 from docker_ci_deploy.__main__ import DockerCiDeployRunner, strip_image_tag
 
 
@@ -236,3 +238,23 @@ class TestDockerCiDeployRunner(object):
         assert logs == expected
 
         assert_output_lines(capfd, [], [])
+
+    def test_non_zero_exit_code(self, tmpdir):
+        """
+        When a Docker command exits with a non-zero return code, an error
+        should be raised with the correct information about the result of
+        the command.
+        """
+        exit_1_path = tmpdir.join('exit_1.sh')
+        exit_1_path.write('#!/bin/sh\necho "errored"\nexit 1\n')
+        exit_1_path.chmod(exit_1_path.stat().mode | stat.S_IEXEC)
+        exit_1 = str(exit_1_path)
+
+        runner = DockerCiDeployRunner(executable=exit_1)
+        with pytest.raises(CalledProcessError) as e_info:
+            runner.run('test-image')
+
+        e = e_info.value
+        assert e.cmd == [exit_1, 'push', 'test-image']
+        assert e.returncode == 1
+        assert e.output == 'errored\n'
