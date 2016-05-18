@@ -38,7 +38,7 @@ class DockerCiDeployRunner(object):
     def _log(self, *args, **kwargs):
         if kwargs.get('if_verbose', False) and not self.verbose:
             return
-        print(*args, **kwargs)
+        print(*args)
 
     def _docker_cmd(self, *args):
         if self.dry_run:
