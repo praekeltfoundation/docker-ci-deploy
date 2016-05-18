@@ -3,7 +3,61 @@ import stat
 
 import pytest
 
-from docker_ci_deploy.__main__ import DockerCiDeployRunner
+from docker_ci_deploy.__main__ import DockerCiDeployRunner, strip_image_tag
+
+
+def test_strip_image_tag():
+    """
+    Given an image tag with registry, name and tag components, strip_image_tag
+    should strip only the tag component.
+    """
+    image = 'registry.example.com:5000/user/name:tag'
+    stripped_tag = strip_image_tag(image)
+
+    assert stripped_tag == 'registry.example.com:5000/user/name'
+
+
+def test_strip_image_tag_no_tag():
+    """
+    Given an image tag with only registry and name components, strip_image_tag
+    should return the image name unchanged.
+    """
+    image = 'registry.example.com:5000/user/name'
+    stripped_tag = strip_image_tag(image)
+
+    assert stripped_tag == image
+
+
+def test_strip_image_tag_no_registry():
+    """
+    Given an image tag with only name and tag components, strip_image_tag
+    should strip the tag component.
+    """
+    image = 'user/name:tag'
+    stripped_tag = strip_image_tag(image)
+
+    assert stripped_tag == 'user/name'
+
+
+def test_strip_image_tag_no_registry_or_tag():
+    """
+    Given an image tag with only name components, strip_image_tag should return
+    the image name unchanged.
+    """
+    image = 'user/name'
+    stripped_tag = strip_image_tag(image)
+
+    assert stripped_tag == image
+
+
+def test_strip_image_tag_unparsable():
+    """ Given a malformed image tag, strip_image_tag should throw an error. """
+    image = 'this:is:invalid/user:test/name:tag/'
+    with pytest.raises(RuntimeError) as e_info:
+        stripped_tag = strip_image_tag(image)
+        print(stripped_tag)
+
+    assert str(e_info.value) == 'Unable to parse tag "%s"' % (image,)
 
 
 def assert_output_lines(capfd, stdout_lines, stderr_lines=[]):

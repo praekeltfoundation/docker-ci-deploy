@@ -10,20 +10,21 @@ import sys
 from itertools import chain
 
 
-def _strip_image_tag(image):
+def strip_image_tag(image):
     """
     Remove the tag part from a Docker tag and return the rest. Full tags are of
     the form [REGISTRYHOST/][NAME/...]NAME[:TAG] where the REGISTRYHOST may
-    contain a ':' but the NAME parts may not.
+    contain a ':' but no '/', the NAME parts may contain '/' but no ':', and
+    the TAG part may contain neither ':' nor '/'.
     """
-    match = re.match('^((?:.+\/)?[^:]+)(?::.+)?$', image)
+    match = re.match('^((?:[^\/]+\/)?[^:]+)(?::[^:\/]+)?$', image)
     if match is None:
         raise RuntimeError('Unable to parse tag "%s"' % (image,))
 
     return match.group(1)
 
 
-def _strip_image_registry(image):
+def strip_image_registry(image):
     # TODO: Not yet sure how to differentiate REGISTRYHOST from a NAME segment.
     return image
 
@@ -97,7 +98,7 @@ class DockerCiDeployRunner(object):
         # Build list of tags to push with provided tags
         push_tags = []
         if tags is not None:
-            stripped_tag = _strip_image_tag(image)
+            stripped_tag = strip_image_tag(image)
             for tag in tags:
                 push_tags.append('%s:%s' % (stripped_tag, tag,))
         else:
@@ -106,7 +107,7 @@ class DockerCiDeployRunner(object):
         # Update tags with registry host information
         if registry is not None:
             for i, tag in enumerate(push_tags):
-                stripped_tag = _strip_image_registry(tag)
+                stripped_tag = strip_image_registry(tag)
                 push_tags[i] = '%s/%s' % (registry, stripped_tag,)
 
         # Actually tag the image
