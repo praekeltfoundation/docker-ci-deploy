@@ -122,3 +122,24 @@ class TestDockerCiDeployRunner(object):
             'registry.example.com:5000',
             'push registry.example.com:5000/test-image'
         ])
+
+    def test_all_options(self, capfd, echo_script):
+        """
+        When tags, a registry, and login details are provided to the runner,
+        the image should be tagged with the tags and registry, a login request
+        should be made to the specified registry, and the tags should be
+        pushed.
+        """
+        runner = DockerCiDeployRunner(executable=echo_script)
+        runner.run('test-image:tag', tags=['latest', 'best'],
+                   registry='registry.example.com:5000',
+                   login='janedoe:pa$$word')
+
+        assert_output_lines(capfd, [
+            'tag test-image:tag registry.example.com:5000/test-image:latest',
+            'tag test-image:tag registry.example.com:5000/test-image:best',
+            'login --username janedoe --password pa$$word '
+            'registry.example.com:5000',
+            'push registry.example.com:5000/test-image:latest',
+            'push registry.example.com:5000/test-image:best'
+        ])
