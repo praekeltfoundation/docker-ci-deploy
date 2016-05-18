@@ -54,8 +54,8 @@ class DockerCiDeployRunner(object):
         if retcode:
             raise subprocess.CalledProcessError(retcode, args, output=out)
 
-        self._log(out)
-        self._log(err, file=sys.stderr)
+        self._log(out, file=sys.stdout, end='')
+        self._log(err, file=sys.stderr, end='')
 
     def docker_tag(self, in_tag, out_tag):
         """ Run ``docker tag`` with the given tags. """
