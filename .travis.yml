@@ -11,8 +11,8 @@ install:
   - pip install codecov
 
 script:
-  - flake8 .
   - py.test --cov docker_ci_deploy docker_ci_deploy
+  - flake8 .
 
 after_success:
   - codecov
