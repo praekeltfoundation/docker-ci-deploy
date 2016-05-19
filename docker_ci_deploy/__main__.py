@@ -29,6 +29,27 @@ def strip_image_registry(image):
     return image
 
 
+def cmd(args):
+    """
+    Execute a command in a subprocess. The process is waited for and the return
+    code is checked. If the return code is non-zero, an error is raised. The
+    stdout/stderr of the process is written to Python's stdout/stderr.
+
+    :param list args:
+        List of program arguments to execute.
+    """
+    process = subprocess.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    out, err = process.communicate()
+    retcode = process.poll()
+    if retcode:
+        raise subprocess.CalledProcessError(retcode, args, output=out)
+
+    sys.stdout.buffer.write(out)
+    sys.stderr.buffer.write(err)
+
+
 class DockerCiDeployRunner(object):
 
     logger = print
@@ -49,17 +70,7 @@ class DockerCiDeployRunner(object):
             self._log(*args)
             return
 
-        process = subprocess.Popen(args,
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE)
-
-        out, err = process.communicate()
-        retcode = process.poll()
-        if retcode:
-            raise subprocess.CalledProcessError(retcode, args, output=out)
-
-        sys.stdout.buffer.write(out)
-        sys.stderr.buffer.write(err)
+        cmd(args)
 
     def docker_tag(self, in_tag, out_tag):
         """ Run ``docker tag`` with the given tags. """

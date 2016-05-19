@@ -5,7 +5,10 @@ import pytest
 
 from subprocess import CalledProcessError
 
-from docker_ci_deploy.__main__ import DockerCiDeployRunner, strip_image_tag
+from docker_ci_deploy.__main__ import (
+    cmd, DockerCiDeployRunner, strip_image_tag)
+
+""" strip_image_tag() """
 
 
 def test_strip_image_tag():
@@ -61,6 +64,9 @@ def test_strip_image_tag_unparsable():
     assert str(e_info.value) == 'Unable to parse tag "%s"' % (image,)
 
 
+""" cmd() """
+
+
 def assert_output_lines(capfd, stdout_lines, stderr_lines=[]):
     out, err = capfd.readouterr()
 
@@ -71,6 +77,45 @@ def assert_output_lines(capfd, stdout_lines, stderr_lines=[]):
     err_lines = err.split('\n')
     assert err_lines.pop() == ''
     assert err_lines == stderr_lines
+
+
+def test_cmd_stdout(capfd):
+    """
+    When a command writes to stdout, that output should be captured and written
+    to Python's stdout.
+    """
+    cmd(['echo', 'Hello, World!'])
+
+    assert_output_lines(capfd, stdout_lines=['Hello, World!'], stderr_lines=[])
+
+
+def test_cmd_stderr(capfd):
+    """
+    When a command writes to stderr, that output should be captured and written
+    to Python's stderr.
+    """
+    # Have to do something a bit more complicated to echo to stderr w/o shell
+    cmd(['awk', 'BEGIN { print "Hello, World!" > "/dev/stderr" }'])
+
+    assert_output_lines(capfd, stdout_lines=[], stderr_lines=['Hello, World!'])
+
+
+def test_cmd_error(capfd):
+    """
+    When a command exits with a non-zero return code, an error should be raised
+    with the correct information about the result of the command. There should
+    be no output to stdout or stderr.
+    """
+    args = ['awk', 'BEGIN { print "errored"; exit 1 }']
+    with pytest.raises(CalledProcessError) as e_info:
+        cmd(args)
+
+    e = e_info.value
+    assert e.cmd == args
+    assert e.returncode == 1
+    assert e.output == b'errored\n'
+
+    assert_output_lines(capfd, [], [])
 
 
 class TestDockerCiDeployRunner(object):
@@ -237,23 +282,3 @@ class TestDockerCiDeployRunner(object):
         assert logs == expected
 
         assert_output_lines(capfd, [], [])
-
-    def test_non_zero_exit_code(self, tmpdir):
-        """
-        When a Docker command exits with a non-zero return code, an error
-        should be raised with the correct information about the result of
-        the command.
-        """
-        exit_1_path = tmpdir.join('exit_1.sh')
-        exit_1_path.write('#!/bin/sh\necho "errored"\nexit 1\n')
-        exit_1_path.chmod(exit_1_path.stat().mode | stat.S_IEXEC)
-        exit_1 = str(exit_1_path)
-
-        runner = DockerCiDeployRunner(executable=exit_1)
-        with pytest.raises(CalledProcessError) as e_info:
-            runner.run('test-image')
-
-        e = e_info.value
-        assert e.cmd == [exit_1, 'push', 'test-image']
-        assert e.returncode == 1
-        assert e.output == b'errored\n'
