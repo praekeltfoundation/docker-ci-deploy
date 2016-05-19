@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import sys
+
 import pytest
 
 from subprocess import CalledProcessError
@@ -308,7 +310,12 @@ def test_main_image_required(capfd):
 
     out, err = capfd.readouterr()
     assert out == ''
-    assert 'required: image' in err
+
+    # More useful error message added to argparse in Python 3
+    if sys.version_info >= (3,):
+        assert 'error: the following arguments are required: image' in err
+    else:
+        assert 'error: too few arguments' in err
 
 
 def test_main_many_tags(capfd):
