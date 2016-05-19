@@ -1,8 +1,8 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='docker-ci-deploy',
-    version='0.1.0',
+    version='0.1.1',
     license='MIT',
     url='https://github.com/praekeltfoundation/docker-ci-deploy',
     description='Python script to help push Docker images to a registry using '
@@ -18,6 +18,7 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
     ],
+    packages=find_packages(),
     entry_points={
         'console_scripts': [
             'docker-ci-deploy = docker_ci_deploy.__main__:main'
