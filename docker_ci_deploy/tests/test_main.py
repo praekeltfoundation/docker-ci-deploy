@@ -4,7 +4,7 @@ import pytest
 from subprocess import CalledProcessError
 
 from docker_ci_deploy.__main__ import (
-    cmd, DockerCiDeployRunner, strip_image_tag)
+    cmd, DockerCiDeployRunner, main, strip_image_tag)
 
 """ strip_image_tag() """
 
@@ -271,3 +271,63 @@ class TestDockerCiDeployRunner(object):
         assert logs == expected
 
         assert_output_lines(capfd, [], [])
+
+
+""" main() """
+
+
+def test_main_args(capfd):
+    """
+    When the main function is given a set of common arguments, the script
+    should be run as expected.
+    """
+    main([
+        '--login', 'janedoe:pa$$word',
+        '--registry', 'registry.example.com:5000',
+        '--executable', 'echo',
+        'test-image:abc'
+    ])
+
+    assert_output_lines(capfd, [
+        'tag test-image:abc registry.example.com:5000/test-image:abc',
+        'login --username janedoe --password pa$$word '
+        'registry.example.com:5000',
+        'push registry.example.com:5000/test-image:abc'
+    ])
+
+
+def test_main_image_required(capfd):
+    """
+    When the main function is given no image argument, it should exit with a
+    return code of 2 and inform the user of the missing argument.
+    """
+    with pytest.raises(SystemExit) as e_info:
+        main(['--tag', 'abc'])
+
+    assert e_info.value.args == (2,)
+
+    out, err = capfd.readouterr()
+    assert out == ''
+    assert 'required: image' in err
+
+
+def test_main_many_tags(capfd):
+    """
+    When the main function is given multiple tag arguments in different ways,
+    the tags should be correctly passed through to the runner.
+    """
+    main([
+        '--tag', 'abc', 'def',
+        '-t', 'ghi',
+        '--executable', 'echo',
+        'test-image:xyz'
+    ])
+
+    assert_output_lines(capfd, [
+        'tag test-image:xyz test-image:abc',
+        'tag test-image:xyz test-image:def',
+        'tag test-image:xyz test-image:ghi',
+        'push test-image:abc',
+        'push test-image:def',
+        'push test-image:ghi'
+    ])

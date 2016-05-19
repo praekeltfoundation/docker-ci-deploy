@@ -162,7 +162,8 @@ def main(raw_args=sys.argv[1:]):
 
     args = parser.parse_args(raw_args)
 
-    runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose)
+    runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose,
+                                  executable=args.executable)
     # Flatten list of tags
     tags = chain.from_iterable(args.tag) if args.tag is not None else None
     runner.run(args.image, tags=tags, login=args.login, registry=args.registry)
