@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='docker-ci-deploy',
@@ -18,6 +18,7 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
     ],
+    packages=find_packages(),
     entry_points={
         'console_scripts': [
             'docker-ci-deploy = docker_ci_deploy.__main__:main'
