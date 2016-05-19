@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='docker-ci-deploy',
-    version='0.1.1-dev',
+    version='0.1.1',
     license='MIT',
     url='https://github.com/praekeltfoundation/docker-ci-deploy',
     description='Python script to help push Docker images to a registry using '
