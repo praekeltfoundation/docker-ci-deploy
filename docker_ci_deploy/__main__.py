@@ -46,8 +46,15 @@ def cmd(args):
     if retcode:
         raise subprocess.CalledProcessError(retcode, args, output=out)
 
-    sys.stdout.buffer.write(out)
-    sys.stderr.buffer.write(err)
+    if sys.version_info >= (3,):
+        sys.stdout.buffer.write(out)
+        sys.stderr.buffer.write(err)
+    else:
+        # Python 2 doesn't have a .buffer on stdout/stderr for writing binary
+        # data. The below will only work for unicode in Python 2.7.1+ due to
+        # https://bugs.python.org/issue4947.
+        sys.stdout.write(out)
+        sys.stderr.write(err)
 
 
 class DockerCiDeployRunner(object):
