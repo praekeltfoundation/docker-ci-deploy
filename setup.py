@@ -6,7 +6,7 @@ with open('README.md') as f:
 
 setup(
     name='docker-ci-deploy',
-    version='0.1.2',
+    version='0.1.3-dev',
     license='MIT',
     url='https://github.com/praekeltfoundation/docker-ci-deploy',
     description='Python script to help push Docker images to a registry using '
