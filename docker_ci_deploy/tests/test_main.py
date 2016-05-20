@@ -385,17 +385,16 @@ def test_main_hides_stacktrace(capfd):
             'test-image'
         ])
 
-    # Check OSError that caused the exit
-    error = e_info.value.code
-    if sys.version_info >= (3,):
-        assert isinstance(error, FileNotFoundError)
-    else:
-        assert isinstance(error, OSError)
+    assert e_info.value.code == 1
 
     # FIXME: actually assert that traceback is not printed
 
+    if sys.version_info >= (3,):
+        error_msg = "[Errno 2] No such file or directory: 'does-not-exist1234'"
+    else:
+        error_msg = '[Errno 2] No such file or directory'
     assert_output_lines(capfd, [
-        'Exception raised during execution.',
+        'Exception raised during execution: %s' % (error_msg,),
         'Stacktrace suppressed. Use debug mode to see full stacktrace.',
     ])
 

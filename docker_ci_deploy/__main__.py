@@ -198,9 +198,9 @@ def main(raw_args=sys.argv[1:]):
         if args.debug:
             raise
 
-        print('Exception raised during execution.')
+        print('Exception raised during execution: %s' % (str(e),))
         print('Stacktrace suppressed. Use debug mode to see full stacktrace.')
-        sys.exit(e)  # Can pass sys.exit an object and return code will be 1
+        sys.exit(1)
 
 
 if __name__ == "__main__":
