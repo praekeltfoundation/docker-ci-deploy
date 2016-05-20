@@ -1,12 +1,17 @@
 from setuptools import setup, find_packages
 
+
+with open('README.md') as f:
+    README = f.read()
+
 setup(
     name='docker-ci-deploy',
-    version='0.1.1',
+    version='0.1.2',
     license='MIT',
     url='https://github.com/praekeltfoundation/docker-ci-deploy',
     description='Python script to help push Docker images to a registry using '
                 'CI services',
+    long_description=README,
     author='Jamie Hewland',
     author_email='jamie@praekelt.com',
     classifiers=[
