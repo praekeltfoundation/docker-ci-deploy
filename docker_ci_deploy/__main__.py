@@ -45,10 +45,6 @@ def cmd(args, sanitised_args=None):
         args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     out, err = process.communicate()
-    retcode = process.poll()
-    if retcode:
-        e_args = args if sanitised_args is None else sanitised_args
-        raise subprocess.CalledProcessError(retcode, e_args, output=out)
 
     if sys.version_info >= (3,):
         sys.stdout.buffer.write(out)
@@ -59,6 +55,11 @@ def cmd(args, sanitised_args=None):
         # https://bugs.python.org/issue4947.
         sys.stdout.write(out)
         sys.stderr.write(err)
+
+    retcode = process.poll()
+    if retcode:
+        e_args = args if sanitised_args is None else sanitised_args
+        raise subprocess.CalledProcessError(retcode, e_args, output=out)
 
 
 class DockerCiDeployRunner(object):

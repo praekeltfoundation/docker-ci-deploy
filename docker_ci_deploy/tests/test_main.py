@@ -120,8 +120,8 @@ def test_cmd_stdout_unicode(capfd):
 def test_cmd_error(capfd):
     """
     When a command exits with a non-zero return code, an error should be raised
-    with the correct information about the result of the command. There should
-    be no output to stdout or stderr.
+    with the correct information about the result of the command. The stdout or
+    stderr output should still be captured.
     """
     args = ['awk', 'BEGIN { print "errored"; exit 1 }']
     with pytest.raises(CalledProcessError) as e_info:
@@ -132,7 +132,7 @@ def test_cmd_error(capfd):
     assert e.returncode == 1
     assert e.output == b'errored\n'
 
-    assert_output_lines(capfd, [], [])
+    assert_output_lines(capfd, ['errored'], [])
 
 
 class TestDockerCiDeployRunner(object):
