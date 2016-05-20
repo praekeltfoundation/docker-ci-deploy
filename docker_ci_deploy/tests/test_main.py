@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import stat
 import sys
 
 import pytest
@@ -119,8 +120,8 @@ def test_cmd_stdout_unicode(capfd):
 def test_cmd_error(capfd):
     """
     When a command exits with a non-zero return code, an error should be raised
-    with the correct information about the result of the command. There should
-    be no output to stdout or stderr.
+    with the correct information about the result of the command. The stdout or
+    stderr output should still be captured.
     """
     args = ['awk', 'BEGIN { print "errored"; exit 1 }']
     with pytest.raises(CalledProcessError) as e_info:
@@ -131,7 +132,7 @@ def test_cmd_error(capfd):
     assert e.returncode == 1
     assert e.output == b'errored\n'
 
-    assert_output_lines(capfd, [], [])
+    assert_output_lines(capfd, ['errored'], [])
 
 
 class TestDockerCiDeployRunner(object):
@@ -290,6 +291,21 @@ class TestDockerCiDeployRunner(object):
 
         assert_output_lines(capfd, [], [])
 
+    def test_failed_run_obfuscates_password(self, tmpdir):
+        """
+        When running in dry-run mode and login details are provided, the user's
+        password should not be logged.
+        """
+        exit_1 = tmpdir.join('exit_1.sh')
+        exit_1.write('#!/bin/sh\nexit 1\n')
+        exit_1.chmod(exit_1.stat().mode | stat.S_IEXEC)
+
+        runner = DockerCiDeployRunner(executable=str(exit_1))
+        with pytest.raises(CalledProcessError) as e_info:
+            runner.run('test-image', login='janedoe:pa$$word')
+
+        assert 'pa$$word' not in str(e_info.value)
+
 
 """ main() """
 
@@ -354,3 +370,52 @@ def test_main_many_tags(capfd):
         'push test-image:def',
         'push test-image:ghi'
     ])
+
+
+def test_main_hides_stacktrace(capfd):
+    """
+    When an error is thrown - for example if the Docker executable cannot be
+    found - then the stacktrace is suppressed and information about the
+    runtime arguments is not exposed.
+    """
+    with pytest.raises(SystemExit) as e_info:
+        main([
+            '--login', 'janedoe:pa$$word',
+            '--executable', 'does-not-exist1234',
+            'test-image'
+        ])
+
+    assert e_info.value.code == 1
+
+    # FIXME: actually assert that traceback is not printed
+
+    if sys.version_info >= (3,):
+        error_msg = "[Errno 2] No such file or directory: 'does-not-exist1234'"
+    else:
+        error_msg = '[Errno 2] No such file or directory'
+    assert_output_lines(capfd, [
+        'Exception raised during execution: %s' % (error_msg,),
+        'Stacktrace suppressed. Use debug mode to see full stacktrace.',
+    ])
+
+
+def test_main_debug_shows_stacktrace(capfd):
+    """
+    When an error is thrown - for example if the Docker executable cannot be
+    found - then the stacktrace is suppressed and information about the
+    runtime arguments is not exposed.
+    """
+    with pytest.raises(OSError) as e_info:
+        main([
+            '--debug',
+            '--login', 'janedoe:pa$$word',
+            '--executable', 'does-not-exist1234',
+            'test-image'
+        ])
+    assert '[Errno 2] No such file or directory' in str(e_info.value)
+
+    # FIXME: actually assert that traceback is printed
+
+    # pytest suppresses the stack trace itself so it doesn't show up in
+    # stdout/stderr
+    assert_output_lines(capfd, [], [])
