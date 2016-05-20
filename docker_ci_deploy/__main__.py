@@ -29,7 +29,7 @@ def strip_image_registry(image):
     return image
 
 
-def cmd(args):
+def cmd(args, sanitised_args=None):
     """
     Execute a command in a subprocess. The process is waited for and the return
     code is checked. If the return code is non-zero, an error is raised. The
@@ -37,6 +37,9 @@ def cmd(args):
 
     :param list args:
         List of program arguments to execute.
+    :param list sanitised_args:
+        Like ``args`` but with any sensitive data redacted. This will be passed
+        to the exception object in the case of a non-zero return code.
     """
     process = subprocess.Popen(
         args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -44,7 +47,8 @@ def cmd(args):
     out, err = process.communicate()
     retcode = process.poll()
     if retcode:
-        raise subprocess.CalledProcessError(retcode, args, output=out)
+        e_args = args if sanitised_args is None else sanitised_args
+        raise subprocess.CalledProcessError(retcode, e_args, output=out)
 
     if sys.version_info >= (3,):
         sys.stdout.buffer.write(out)
@@ -71,32 +75,40 @@ class DockerCiDeployRunner(object):
             return
         self.logger(*args)
 
-    def _docker_cmd(self, *args):
-        args = [self.executable] + list(args)
+    def _docker_cmd(self, args, sanitised_args=None):
+        args = [self.executable] + args
+        if sanitised_args is not None:
+            sanitised_args = [self.executable] + sanitised_args
+
         if self.dry_run:
-            self._log(*args)
+            log_args = args if sanitised_args is None else sanitised_args
+            self._log(*log_args)
             return
 
-        cmd(args)
+        cmd(args, sanitised_args)
 
     def docker_tag(self, in_tag, out_tag):
         """ Run ``docker tag`` with the given tags. """
-        self._docker_cmd('tag', in_tag, out_tag)
+        self._docker_cmd(['tag', in_tag, out_tag])
 
     def docker_login(self, username, password, registry):
         """ Run ``docker login`` with the given credentials. """
-        cmd = [
+        args = [
             'login',
             '--username', username,
-            '--password', password if not self.dry_run else '<password>',
+            '--password', password,
         ]
         if registry is not None:
-            cmd.append(registry)
-        self._docker_cmd(*cmd)
+            args.append(registry)
+
+        sanitised_args = list(args)
+        sanitised_args[4] = '<password>'
+
+        self._docker_cmd(args, sanitised_args)
 
     def docker_push(self, tag):
         """ Run ``docker push`` with the given tag. """
-        self._docker_cmd('push', tag)
+        self._docker_cmd(['push', tag])
 
     def run(self, image, tags=None, login=None, registry=None):
         """
@@ -160,6 +172,11 @@ def main(raw_args=sys.argv[1:]):
                         help='Address for the registry to login and push to')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Verbose logging output')
+    parser.add_argument('-d', '--debug', action='store_true',
+                        help='Run in debug mode with full stacktraces. '
+                             'WARNING: do not use this in production as it is '
+                             'likely that your credentials will be leaked if '
+                             'this script errors.')
     parser.add_argument('--dry-run', action='store_true',
                         help='Print but do not execute any Docker commands')
     parser.add_argument('--executable', nargs='?', default='docker',
@@ -173,7 +190,17 @@ def main(raw_args=sys.argv[1:]):
                                   executable=args.executable)
     # Flatten list of tags
     tags = chain.from_iterable(args.tag) if args.tag is not None else None
-    runner.run(args.image, tags=tags, login=args.login, registry=args.registry)
+
+    try:
+        runner.run(
+            args.image, tags=tags, login=args.login, registry=args.registry)
+    except BaseException as e:
+        if args.debug:
+            raise
+
+        print('Exception raised during execution: %s' % (str(e),))
+        print('Stacktrace suppressed. Use debug mode to see full stacktrace.')
+        sys.exit(1)
 
 
 if __name__ == "__main__":
