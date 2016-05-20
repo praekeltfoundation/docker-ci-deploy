@@ -69,6 +69,12 @@ def test_strip_image_tag_unparsable():
 
 def assert_output_lines(capfd, stdout_lines, stderr_lines=[]):
     out, err = capfd.readouterr()
+    if sys.version_info < (3,):
+        # FIXME: I'm not entirely sure how to determine the correct encoding
+        # here and not sure whether the right answer comes from Python itself
+        # or pytest. For now, UTF-8 seems like a safe bet.
+        out = out.encode('utf-8')
+        err = err.encode('utf-8')
 
     out_lines = out.split('\n')
     assert out_lines.pop() == ''
@@ -98,6 +104,16 @@ def test_cmd_stderr(capfd):
     cmd(['awk', 'BEGIN { print "Hello, World!" > "/dev/stderr" }'])
 
     assert_output_lines(capfd, stdout_lines=[], stderr_lines=['Hello, World!'])
+
+
+def test_cmd_stdout_unicode(capfd):
+    """
+    When a command writes Unicode to a standard stream, that output should be
+    captured and encoded correctly.
+    """
+    cmd(['echo', 'á, é, í, ó, ú, ü, ñ, ¿, ¡'])
+
+    assert_output_lines(capfd, ['á, é, í, ó, ú, ü, ñ, ¿, ¡'])
 
 
 def test_cmd_error(capfd):
