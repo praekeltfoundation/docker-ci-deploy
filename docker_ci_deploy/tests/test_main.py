@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
+import re
 import stat
 import sys
 from subprocess import CalledProcessError
 
-import pytest
+from testtools import ExpectedException
+from testtools.assertions import assert_that
+from testtools.matchers import (
+    AfterPreprocessing as After, Equals, MatchesRegex, MatchesStructure, Not)
 
 from docker_ci_deploy.__main__ import (
     cmd, DockerCiDeployRunner, main, strip_image_tag)
@@ -19,7 +23,7 @@ def test_strip_image_tag():
     image = 'registry.example.com:5000/user/name:tag'
     stripped_tag = strip_image_tag(image)
 
-    assert stripped_tag == 'registry.example.com:5000/user/name'
+    assert_that(stripped_tag, Equals('registry.example.com:5000/user/name'))
 
 
 def test_strip_image_tag_no_tag():
@@ -30,7 +34,7 @@ def test_strip_image_tag_no_tag():
     image = 'registry.example.com:5000/user/name'
     stripped_tag = strip_image_tag(image)
 
-    assert stripped_tag == image
+    assert_that(stripped_tag, Equals(image))
 
 
 def test_strip_image_tag_no_registry():
@@ -41,7 +45,7 @@ def test_strip_image_tag_no_registry():
     image = 'user/name:tag'
     stripped_tag = strip_image_tag(image)
 
-    assert stripped_tag == 'user/name'
+    assert_that(stripped_tag, Equals('user/name'))
 
 
 def test_strip_image_tag_no_registry_or_tag():
@@ -52,16 +56,15 @@ def test_strip_image_tag_no_registry_or_tag():
     image = 'user/name'
     stripped_tag = strip_image_tag(image)
 
-    assert stripped_tag == image
+    assert_that(stripped_tag, Equals(image))
 
 
 def test_strip_image_tag_unparsable():
     """ Given a malformed image tag, strip_image_tag should throw an error. """
     image = 'this:is:invalid/user:test/name:tag/'
-    with pytest.raises(RuntimeError) as e_info:
+    with ExpectedException(RuntimeError,
+                           r'Unable to parse tag "%s"' % (image,)):
         strip_image_tag(image)
-
-    assert str(e_info.value) == 'Unable to parse tag "%s"' % (image,)
 
 
 """ cmd() """
@@ -77,12 +80,12 @@ def assert_output_lines(capfd, stdout_lines, stderr_lines=[]):
         err = err.encode('utf-8')
 
     out_lines = out.split('\n')
-    assert out_lines.pop() == ''
-    assert out_lines == stdout_lines
+    assert_that(out_lines.pop(), Equals(''))
+    assert_that(out_lines, Equals(stdout_lines))
 
     err_lines = err.split('\n')
-    assert err_lines.pop() == ''
-    assert err_lines == stderr_lines
+    assert_that(err_lines.pop(), Equals(''))
+    assert_that(err_lines, Equals(stderr_lines))
 
 
 def test_cmd_stdout(capfd):
@@ -123,13 +126,11 @@ def test_cmd_error(capfd):
     stderr output should still be captured.
     """
     args = ['awk', 'BEGIN { print "errored"; exit 1 }']
-    with pytest.raises(CalledProcessError) as e_info:
+    with ExpectedException(CalledProcessError, MatchesStructure(
+            cmd=Equals(args),
+            returncode=Equals(1),
+            output=Equals(b'errored\n'))):
         cmd(args)
-
-    e = e_info.value
-    assert e.cmd == args
-    assert e.returncode == 1
-    assert e.output == b'errored\n'
 
     assert_output_lines(capfd, ['errored'], [])
 
@@ -268,7 +269,7 @@ class TestDockerCiDeployRunner(object):
             'docker tag test-image:tag test-image:latest',
             'docker push test-image:latest'
         ]
-        assert logs == expected
+        assert_that(logs, Equals(expected))
 
         assert_output_lines(capfd, [], [])
 
@@ -286,7 +287,7 @@ class TestDockerCiDeployRunner(object):
             'docker login --username janedoe --password <password>',
             'docker push test-image'
         ]
-        assert logs == expected
+        assert_that(logs, Equals(expected))
 
         assert_output_lines(capfd, [], [])
 
@@ -300,10 +301,9 @@ class TestDockerCiDeployRunner(object):
         exit_1.chmod(exit_1.stat().mode | stat.S_IEXEC)
 
         runner = DockerCiDeployRunner(executable=str(exit_1))
-        with pytest.raises(CalledProcessError) as e_info:
+        with ExpectedException(CalledProcessError,
+                               After(str, Not(MatchesRegex(r'pa\$\$word')))):
             runner.run('test-image', login='janedoe:pa$$word')
-
-        assert 'pa$$word' not in str(e_info.value)
 
 
 """ main() """
@@ -334,19 +334,21 @@ def test_main_image_required(capfd):
     When the main function is given no image argument, it should exit with a
     return code of 2 and inform the user of the missing argument.
     """
-    with pytest.raises(SystemExit) as e_info:
+    with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
         main(['--tag', 'abc'])
 
-    assert e_info.value.args == (2,)
-
     out, err = capfd.readouterr()
-    assert out == ''
+    assert_that(out, Equals(''))
 
     # More useful error message added to argparse in Python 3
     if sys.version_info >= (3,):
-        assert 'error: the following arguments are required: image' in err
+        # Use re.DOTALL so that '.*' also matches newlines
+        assert_that(err, MatchesRegex(
+            r'.*error: the following arguments are required: image$', re.DOTALL
+        ))
     else:
-        assert 'error: too few arguments' in err
+        assert_that(
+            err, MatchesRegex(r'.*error: too few arguments$', re.DOTALL))
 
 
 def test_main_many_tags(capfd):
@@ -377,14 +379,12 @@ def test_main_hides_stacktrace(capfd):
     found - then the stacktrace is suppressed and information about the
     runtime arguments is not exposed.
     """
-    with pytest.raises(SystemExit) as e_info:
+    with ExpectedException(SystemExit, MatchesStructure(code=Equals(1))):
         main([
             '--login', 'janedoe:pa$$word',
             '--executable', 'does-not-exist1234',
             'test-image'
         ])
-
-    assert e_info.value.code == 1
 
     # FIXME: actually assert that traceback is not printed
 
@@ -404,14 +404,13 @@ def test_main_debug_shows_stacktrace(capfd):
     found - then the stacktrace is suppressed and information about the
     runtime arguments is not exposed.
     """
-    with pytest.raises(OSError) as e_info:
+    with ExpectedException(OSError, r'\[Errno 2\] No such file or directory'):
         main([
             '--debug',
             '--login', 'janedoe:pa$$word',
             '--executable', 'does-not-exist1234',
             'test-image'
         ])
-    assert '[Errno 2] No such file or directory' in str(e_info.value)
 
     # FIXME: actually assert that traceback is printed
 
