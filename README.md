@@ -1,4 +1,9 @@
 # docker-ci-deploy
+
+[![PyPI](https://img.shields.io/pypi/v/docker-ci-deploy.svg)](https://pypi.python.org/pypi/docker-ci-deploy)
+[![Build Status](https://travis-ci.org/praekeltfoundation/docker-ci-deploy.svg?branch=develop)](https://travis-ci.org/praekeltfoundation/docker-ci-deploy)
+[![codecov](https://codecov.io/gh/praekeltfoundation/docker-ci-deploy/branch/develop/graph/badge.svg)](https://codecov.io/gh/praekeltfoundation/docker-ci-deploy)
+
 Python script to help push Docker images to a registry using CI services
 
 ## Installation

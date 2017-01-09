@@ -1,7 +1,9 @@
 language: python
 python:
   - '2.7'
+  - '3.4'
   - '3.5'
+  - '3.6'
 cache: pip
 
 install:
@@ -11,7 +13,8 @@ install:
   - pip install codecov
 
 script:
-  - py.test --cov docker_ci_deploy docker_ci_deploy
+  - coverage run "$(which pytest)"
+  - coverage report -m && coverage xml
   - flake8 .
 
 after_success:
