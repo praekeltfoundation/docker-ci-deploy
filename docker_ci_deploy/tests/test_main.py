@@ -209,10 +209,10 @@ class TestDockerCiDeployRunner(object):
         be made and the image should be pushed.
         """
         runner = DockerCiDeployRunner(executable='echo')
-        runner.run('test-image', login='janedoe:pa$$word')
+        runner.run('test-image', login='janedoe:pa55word')
 
         assert_output_lines(capfd, [
-            'login --username janedoe --password pa$$word',
+            'login --username janedoe --password pa55word',
             'push test-image'
         ])
 
@@ -224,11 +224,11 @@ class TestDockerCiDeployRunner(object):
         """
         runner = DockerCiDeployRunner(executable='echo')
         runner.run('test-image', registry='registry.example.com:5000',
-                   login='janedoe:pa$$word')
+                   login='janedoe:pa55word')
 
         assert_output_lines(capfd, [
             'tag test-image registry.example.com:5000/test-image',
-            'login --username janedoe --password pa$$word '
+            'login --username janedoe --password pa55word '
             'registry.example.com:5000',
             'push registry.example.com:5000/test-image'
         ])
@@ -243,12 +243,12 @@ class TestDockerCiDeployRunner(object):
         runner = DockerCiDeployRunner(executable='echo')
         runner.run('test-image:tag', tags=['latest', 'best'],
                    registry='registry.example.com:5000',
-                   login='janedoe:pa$$word')
+                   login='janedoe:pa55word')
 
         assert_output_lines(capfd, [
             'tag test-image:tag registry.example.com:5000/test-image:latest',
             'tag test-image:tag registry.example.com:5000/test-image:best',
-            'login --username janedoe --password pa$$word '
+            'login --username janedoe --password pa55word '
             'registry.example.com:5000',
             'push registry.example.com:5000/test-image:latest',
             'push registry.example.com:5000/test-image:best'
@@ -281,7 +281,7 @@ class TestDockerCiDeployRunner(object):
         runner = DockerCiDeployRunner(dry_run=True)
         logs = []
         runner.logger = lambda *args: logs.append(' '.join(args))
-        runner.run('test-image', login='janedoe:pa$$word')
+        runner.run('test-image', login='janedoe:pa55word')
 
         expected = [
             'docker login --username janedoe --password <password>',
@@ -302,8 +302,8 @@ class TestDockerCiDeployRunner(object):
 
         runner = DockerCiDeployRunner(executable=str(exit_1))
         with ExpectedException(CalledProcessError,
-                               After(str, Not(MatchesRegex(r'pa\$\$word')))):
-            runner.run('test-image', login='janedoe:pa$$word')
+                               After(str, Not(MatchesRegex(r'pa55word')))):
+            runner.run('test-image', login='janedoe:pa55word')
 
 
 """ main() """
@@ -315,7 +315,7 @@ def test_main_args(capfd):
     should be run as expected.
     """
     main([
-        '--login', 'janedoe:pa$$word',
+        '--login', 'janedoe:pa55word',
         '--registry', 'registry.example.com:5000',
         '--executable', 'echo',
         'test-image:abc'
@@ -323,7 +323,7 @@ def test_main_args(capfd):
 
     assert_output_lines(capfd, [
         'tag test-image:abc registry.example.com:5000/test-image:abc',
-        'login --username janedoe --password pa$$word '
+        'login --username janedoe --password pa55word '
         'registry.example.com:5000',
         'push registry.example.com:5000/test-image:abc'
     ])
@@ -381,7 +381,7 @@ def test_main_hides_stacktrace(capfd):
     """
     with ExpectedException(SystemExit, MatchesStructure(code=Equals(1))):
         main([
-            '--login', 'janedoe:pa$$word',
+            '--login', 'janedoe:pa55word',
             '--executable', 'does-not-exist1234',
             'test-image'
         ])
@@ -411,7 +411,7 @@ def test_main_debug_shows_stacktrace(capfd):
     with ExpectedException(err_type, r'\[Errno 2\] No such file or directory'):
         main([
             '--debug',
-            '--login', 'janedoe:pa$$word',
+            '--login', 'janedoe:pa55word',
             '--executable', 'does-not-exist1234',
             'test-image'
         ])
