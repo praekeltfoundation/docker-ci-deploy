@@ -6,9 +6,9 @@ python:
   - '3.6'
 cache: pip
 
-install:
+before_install:
   - pip install --upgrade pip
-  - pip install -e .
+install:
   - pip install -r requirements-dev.txt
   - pip install codecov
 
