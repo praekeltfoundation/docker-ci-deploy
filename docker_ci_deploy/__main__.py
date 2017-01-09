@@ -110,12 +110,12 @@ class DockerCiDeployRunner(object):
         """ Run ``docker push`` with the given tag. """
         self._docker_cmd(['push', tag])
 
-    def run(self, image, tags=None, login=None, registry=None):
+    def run(self, images, tags=None, login=None, registry=None):
         """
         Run the script - tag, login and push as necessary.
 
-        :param image:
-            The full source image tag.
+        :param images:
+            A list of full source image tags.
         :param tags:
             A list of tags to tag the image with or None if no new tags are
             required.
@@ -125,27 +125,32 @@ class DockerCiDeployRunner(object):
         :param registry:
             The address to the Docker registry host.
         """
-        # Build list of tags to push with provided tags
-        push_tags = []
-        if tags is not None:
-            stripped_tag = strip_image_tag(image)
-            for tag in tags:
-                push_tags.append('%s:%s' % (stripped_tag, tag,))
-        else:
-            push_tags = [image]
+        # Build map of images to tags to push with provided tags
+        image_to_push_tags = []
+        for image in images:
+            push_tags = []
+            image_to_push_tags.append((image, push_tags))
+            if tags is not None:
+                stripped_tag = strip_image_tag(image)
+                for tag in tags:
+                    push_tags.append('%s:%s' % (stripped_tag, tag,))
+            else:
+                push_tags.append(image)
 
         # Update tags with registry host information
         if registry is not None:
-            for i, tag in enumerate(push_tags):
-                stripped_tag = strip_image_registry(tag)
-                push_tags[i] = '%s/%s' % (registry, stripped_tag,)
+            for _, push_tags in image_to_push_tags:
+                for i, tag in enumerate(push_tags):
+                    stripped_tag = strip_image_registry(tag)
+                    push_tags[i] = '%s/%s' % (registry, stripped_tag,)
 
         # Actually tag the image
-        for tag in push_tags:
-            if tag != image:
-                self._log('Tagging "%s" as "%s"...' % (image, tag,),
-                          if_verbose=True)
-                self.docker_tag(image, tag)
+        for image, push_tags in image_to_push_tags:
+            for tag in push_tags:
+                if tag != image:
+                    self._log('Tagging "%s" as "%s"...' % (image, tag,),
+                              if_verbose=True)
+                    self.docker_tag(image, tag)
 
         # Login if login details provided
         if login is not None:
@@ -154,9 +159,10 @@ class DockerCiDeployRunner(object):
             self.docker_login(username, password, registry)
 
         # Finally, push the tags
-        for tag in push_tags:
-            self._log('Pushing tag "%s"...' % (tag,), if_verbose=True)
-            self.docker_push(tag)
+        for _, push_tags in image_to_push_tags:
+            for tag in push_tags:
+                self._log('Pushing tag "%s"...' % (tag,), if_verbose=True)
+                self.docker_push(tag)
 
 
 def main(raw_args=sys.argv[1:]):
@@ -182,7 +188,8 @@ def main(raw_args=sys.argv[1:]):
     parser.add_argument('--executable', nargs='?', default='docker',
                         help='Path to the Docker client executable (default: '
                              '%(default)s)')
-    parser.add_argument('image', help='Tag (full image name) to push')
+    parser.add_argument('image', nargs='+',
+                        help='Tags (full image names) to push')
 
     args = parser.parse_args(raw_args)
 

@@ -141,9 +141,19 @@ class TestDockerCiDeployRunner(object):
         When the runner is run with defaults, the image should be pushed.
         """
         runner = DockerCiDeployRunner(executable='echo')
-        runner.run('test-image')
+        runner.run(['test-image'])
 
         assert_output_lines(capfd, ['push test-image'])
+
+    def test_defaults_multiple_images(self, capfd):
+        """
+        When the runner is run with defaults, and multiple images are provided,
+        all the images should be pushed.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        runner.run(['test-image', 'test-image2'])
+
+        assert_output_lines(capfd, ['push test-image', 'push test-image2'])
 
     def test_tags(self, capfd):
         """
@@ -151,13 +161,32 @@ class TestDockerCiDeployRunner(object):
         each tag should be pushed.
         """
         runner = DockerCiDeployRunner(executable='echo')
-        runner.run('test-image', tags=['abc', 'def'])
+        runner.run(['test-image'], tags=['abc', 'def'])
 
         assert_output_lines(capfd, [
             'tag test-image test-image:abc',
             'tag test-image test-image:def',
             'push test-image:abc',
             'push test-image:def'
+        ])
+
+    def test_tags_multiple_images(self, capfd):
+        """
+        When tags are provided to the runner, and multiple images are provided,
+        all the images should be tagged and each tag should be pushed.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        runner.run(['test-image', 'test-image2'], tags=['abc', 'def'])
+
+        assert_output_lines(capfd, [
+            'tag test-image test-image:abc',
+            'tag test-image test-image:def',
+            'tag test-image2 test-image2:abc',
+            'tag test-image2 test-image2:def',
+            'push test-image:abc',
+            'push test-image:def',
+            'push test-image2:abc',
+            'push test-image2:def',
         ])
 
     def test_tag_replacement(self, capfd):
@@ -167,7 +196,7 @@ class TestDockerCiDeployRunner(object):
         be pushed.
         """
         runner = DockerCiDeployRunner(executable='echo')
-        runner.run('test-image:abc', tags=['def'])
+        runner.run(['test-image:abc'], tags=['def'])
 
         assert_output_lines(capfd, [
             'tag test-image:abc test-image:def',
@@ -180,11 +209,27 @@ class TestDockerCiDeployRunner(object):
         with the registry and pushed.
         """
         runner = DockerCiDeployRunner(executable='echo')
-        runner.run('test-image', registry='registry.example.com:5000')
+        runner.run(['test-image'], registry='registry.example.com:5000')
 
         assert_output_lines(capfd, [
             'tag test-image registry.example.com:5000/test-image',
             'push registry.example.com:5000/test-image'
+        ])
+
+    def test_registry_multiple_images(self, capfd):
+        """
+        When a registry is provided to the runner, the image should be tagged
+        with the registry and pushed.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        runner.run(['test-image', 'test-image2'],
+                   registry='registry.example.com:5000')
+
+        assert_output_lines(capfd, [
+            'tag test-image registry.example.com:5000/test-image',
+            'tag test-image2 registry.example.com:5000/test-image2',
+            'push registry.example.com:5000/test-image',
+            'push registry.example.com:5000/test-image2',
         ])
 
     def test_tags_and_registry(self, capfd):
@@ -193,7 +238,7 @@ class TestDockerCiDeployRunner(object):
         be tagged with both the tags and the registry and pushed.
         """
         runner = DockerCiDeployRunner(executable='echo')
-        runner.run('test-image:ghi', tags=['abc', 'def'],
+        runner.run(['test-image:ghi'], tags=['abc', 'def'],
                    registry='registry.example.com:5000')
 
         assert_output_lines(capfd, [
@@ -209,7 +254,7 @@ class TestDockerCiDeployRunner(object):
         be made and the image should be pushed.
         """
         runner = DockerCiDeployRunner(executable='echo')
-        runner.run('test-image', login='janedoe:pa55word')
+        runner.run(['test-image'], login='janedoe:pa55word')
 
         assert_output_lines(capfd, [
             'login --username janedoe --password pa55word',
@@ -223,7 +268,7 @@ class TestDockerCiDeployRunner(object):
         to the specified registry. The image should be pushed.
         """
         runner = DockerCiDeployRunner(executable='echo')
-        runner.run('test-image', registry='registry.example.com:5000',
+        runner.run(['test-image'], registry='registry.example.com:5000',
                    login='janedoe:pa55word')
 
         assert_output_lines(capfd, [
@@ -241,7 +286,7 @@ class TestDockerCiDeployRunner(object):
         pushed.
         """
         runner = DockerCiDeployRunner(executable='echo')
-        runner.run('test-image:tag', tags=['latest', 'best'],
+        runner.run(['test-image:tag'], tags=['latest', 'best'],
                    registry='registry.example.com:5000',
                    login='janedoe:pa55word')
 
@@ -254,6 +299,33 @@ class TestDockerCiDeployRunner(object):
             'push registry.example.com:5000/test-image:best'
         ])
 
+    def test_all_options_multiple_images(self, capfd):
+        """
+        When multiple images, tags, a registry, and login details are provided
+        to the runner, all the image should be tagged with the tags and
+        registry, a login request should be made to the specified registry, and
+        the tags should be pushed.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        runner.run(['test-image:tag', 'test-image2:tag2'],
+                   tags=['latest', 'best'],
+                   registry='registry.example.com:5000',
+                   login='janedoe:pa55word')
+
+        assert_output_lines(capfd, [
+            'tag test-image:tag registry.example.com:5000/test-image:latest',
+            'tag test-image:tag registry.example.com:5000/test-image:best',
+            ('tag test-image2:tag2 '
+                'registry.example.com:5000/test-image2:latest'),
+            'tag test-image2:tag2 registry.example.com:5000/test-image2:best',
+            'login --username janedoe --password pa55word '
+            'registry.example.com:5000',
+            'push registry.example.com:5000/test-image:latest',
+            'push registry.example.com:5000/test-image:best',
+            'push registry.example.com:5000/test-image2:latest',
+            'push registry.example.com:5000/test-image2:best',
+        ])
+
     def test_dry_run(self, capfd):
         """
         When running in dry-run mode, the expected commands should be logged
@@ -263,7 +335,7 @@ class TestDockerCiDeployRunner(object):
         runner = DockerCiDeployRunner(dry_run=True)
         logs = []
         runner.logger = lambda *args: logs.append(' '.join(args))
-        runner.run('test-image:tag', tags=['latest'])
+        runner.run(['test-image:tag'], tags=['latest'])
 
         expected = [
             'docker tag test-image:tag test-image:latest',
@@ -281,7 +353,7 @@ class TestDockerCiDeployRunner(object):
         runner = DockerCiDeployRunner(dry_run=True)
         logs = []
         runner.logger = lambda *args: logs.append(' '.join(args))
-        runner.run('test-image', login='janedoe:pa55word')
+        runner.run(['test-image'], login='janedoe:pa55word')
 
         expected = [
             'docker login --username janedoe --password <password>',
@@ -303,7 +375,7 @@ class TestDockerCiDeployRunner(object):
         runner = DockerCiDeployRunner(executable=str(exit_1))
         with ExpectedException(CalledProcessError,
                                After(str, Not(MatchesRegex(r'pa55word')))):
-            runner.run('test-image', login='janedoe:pa55word')
+            runner.run(['test-image'], login='janedoe:pa55word')
 
 
 """ main() """
