@@ -404,7 +404,11 @@ def test_main_debug_shows_stacktrace(capfd):
     found - then the stacktrace is suppressed and information about the
     runtime arguments is not exposed.
     """
-    with ExpectedException(OSError, r'\[Errno 2\] No such file or directory'):
+    if sys.version_info >= (3,):
+        err_type = FileNotFoundError  # noqa: F821
+    else:
+        err_type = OSError
+    with ExpectedException(err_type, r'\[Errno 2\] No such file or directory'):
         main([
             '--debug',
             '--login', 'janedoe:pa$$word',
