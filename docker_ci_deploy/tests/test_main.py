@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 import stat
 import sys
+from subprocess import CalledProcessError
 
 import pytest
-
-from subprocess import CalledProcessError
 
 from docker_ci_deploy.__main__ import (
     cmd, DockerCiDeployRunner, main, strip_image_tag)
