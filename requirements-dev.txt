@@ -1,4 +1,4 @@
 -e .
 coverage
 flake8
-pytest>=2.8.0
+pytest >= 3.0.0
