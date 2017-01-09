@@ -54,7 +54,7 @@ You can provide multiple images to `docker-ci-deploy` and it will tag and push a
 ```
 docker-ci-deploy --tag $(git rev-parse --short HEAD) my-image my-other-image
 ```
-This will result in the tags `my-image:eea981f` and `my-other-image:eea981f` being tagged and pused.
+This will result in the tags `my-image:eea981f` and `my-other-image:eea981f` being created and pushed.
 
 #### Debugging
 Use the `--dry-run` and `--verbose` parameters to see what the script will do before you use it. For more help try `docker-ci-deploy --help`.
