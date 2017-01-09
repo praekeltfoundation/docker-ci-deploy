@@ -6,7 +6,6 @@ import argparse
 import re
 import subprocess
 import sys
-
 from itertools import chain
 
 

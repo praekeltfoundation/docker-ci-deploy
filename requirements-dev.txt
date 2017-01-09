@@ -1,3 +1,5 @@
+-e .
+coverage
 flake8
-pytest>=2.8.0
-pytest-coverage
+pytest >= 3.0.0
+testtools
