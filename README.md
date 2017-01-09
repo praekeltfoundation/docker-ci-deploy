@@ -49,6 +49,13 @@ docker-ci-deploy --login 'janedoe:pa$$word' \
 ```
 This will result in the tags `my-registry.example.com:5000/my-image:alpine` and `my-registry.example.com:5000/my-image:eea981f` being created and pushed. A login request will be made to `my-registry.example.com:5000`.
 
+#### Multiple images
+You can provide multiple images to `docker-ci-deploy` and it will tag and push all of them:
+```
+docker-ci-deploy --tag $(git rev-parse --short HEAD) my-image my-other-image
+```
+This will result in the tags `my-image:eea981f` and `my-other-image:eea981f` being created and pushed.
+
 #### Debugging
 Use the `--dry-run` and `--verbose` parameters to see what the script will do before you use it. For more help try `docker-ci-deploy --help`.
 
