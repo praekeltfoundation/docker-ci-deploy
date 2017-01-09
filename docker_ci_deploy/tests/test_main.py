@@ -7,64 +7,71 @@ from subprocess import CalledProcessError
 from testtools import ExpectedException
 from testtools.assertions import assert_that
 from testtools.matchers import (
-    AfterPreprocessing as After, Equals, MatchesRegex, MatchesStructure, Not)
+    AfterPreprocessing as After, Equals, Is, MatchesRegex, MatchesStructure,
+    Not)
 
 from docker_ci_deploy.__main__ import (
-    cmd, DockerCiDeployRunner, main, strip_image_tag)
+    cmd, DockerCiDeployRunner, main, split_image_tag)
 
-""" strip_image_tag() """
+""" split_image_tag() """
 
 
-def test_strip_image_tag():
+def test_split_image_tag():
     """
-    Given an image tag with registry, name and tag components, strip_image_tag
-    should strip only the tag component.
+    Given an image tag with registry, name and tag components, split_image_tag
+    should return the registry and name as the image and the tag part as the
+    tag.
     """
-    image = 'registry.example.com:5000/user/name:tag'
-    stripped_tag = strip_image_tag(image)
+    image_tag = 'registry.example.com:5000/user/name:tag'
+    image, tag = split_image_tag(image_tag)
 
-    assert_that(stripped_tag, Equals('registry.example.com:5000/user/name'))
+    assert_that(image, Equals('registry.example.com:5000/user/name'))
+    assert_that(tag, Equals('tag'))
 
 
-def test_strip_image_tag_no_tag():
+def test_split_image_tag_no_tag():
     """
-    Given an image tag with only registry and name components, strip_image_tag
-    should return the image name unchanged.
+    Given an image tag with only registry and name components, split_image_tag
+    should return the image name unchanged and None for the tag.
     """
-    image = 'registry.example.com:5000/user/name'
-    stripped_tag = strip_image_tag(image)
+    image_tag = 'registry.example.com:5000/user/name'
+    image, tag = split_image_tag(image_tag)
 
-    assert_that(stripped_tag, Equals(image))
+    assert_that(image, Equals(image_tag))
+    assert_that(tag, Is(None))
 
 
-def test_strip_image_tag_no_registry():
+def test_split_image_tag_no_registry():
     """
-    Given an image tag with only name and tag components, strip_image_tag
-    should strip the tag component.
+    Given an image tag with only name and tag components, split_image_tag
+    should return the user and name part for the name and the tag part for the
+    tag.
     """
-    image = 'user/name:tag'
-    stripped_tag = strip_image_tag(image)
+    image_tag = 'user/name:tag'
+    image, tag = split_image_tag(image_tag)
 
-    assert_that(stripped_tag, Equals('user/name'))
+    assert_that(image, Equals('user/name'))
+    assert_that(tag, Equals('tag'))
 
 
-def test_strip_image_tag_no_registry_or_tag():
+def test_split_image_tag_no_registry_or_tag():
     """
-    Given an image tag with only name components, strip_image_tag should return
-    the image name unchanged.
+    Given an image tag with only name components, split_image_tag should return
+    the image name unchanged and None for the tag.
     """
-    image = 'user/name'
-    stripped_tag = strip_image_tag(image)
+    image_tag = 'user/name'
+    image, tag = split_image_tag(image_tag)
 
-    assert_that(stripped_tag, Equals(image))
+    assert_that(image, Equals(image_tag))
+    assert_that(tag, Is(None))
 
 
-def test_strip_image_tag_unparsable():
-    """ Given a malformed image tag, strip_image_tag should throw an error. """
-    image = 'this:is:invalid/user:test/name:tag/'
-    with ExpectedException(RuntimeError,
-                           r'Unable to parse tag "%s"' % (image,)):
-        strip_image_tag(image)
+def test_split_image_tag_unparsable():
+    """ Given a malformed image tag, split_image_tag should throw an error. """
+    image_tag = 'this:is:invalid/user:test/name:tag/'
+    with ExpectedException(ValueError,
+                           r"Unable to parse image tag '%s'" % (image_tag,)):
+        split_image_tag(image_tag)
 
 
 """ cmd() """

@@ -9,18 +9,19 @@ import sys
 from itertools import chain
 
 
-def strip_image_tag(image):
+def split_image_tag(image_tag):
     """
-    Remove the tag part from a Docker tag and return the rest. Full tags are of
-    the form [REGISTRYHOST/][NAME/...]NAME[:TAG] where the REGISTRYHOST may
-    contain a ':' but no '/', the NAME parts may contain '/' but no ':', and
-    the TAG part may contain neither ':' nor '/'.
-    """
-    match = re.match('^((?:[^\/]+\/)?[^:]+)(?::[^:\/]+)?$', image)
-    if match is None:
-        raise RuntimeError('Unable to parse tag "%s"' % (image,))
+    Split the given image tag into its name and tag parts (<name>[:<tag>]).
 
-    return match.group(1)
+    Full tags are of the form [REGISTRYHOST/][NAME/...]NAME[:TAG] where the
+    REGISTRYHOST may contain a ':' but no '/', the NAME parts may contain '/'
+    but no ':', and the TAG part may contain neither ':' nor '/'.
+    """
+    match = re.match(r'^((?:[^\/]+\/)?[^:]+)(?::([^:\/]+))?$', image_tag)
+    if match is None:
+        raise ValueError("Unable to parse image tag '%s'" % (image_tag,))
+
+    return match.group(1), match.group(2)
 
 
 def strip_image_registry(image):
@@ -129,8 +130,8 @@ class DockerCiDeployRunner(object):
         image_to_push_tags = []
         for image_tag in images:
             if tags is not None:
-                image_name = strip_image_tag(image_tag)
-                push_tags = ['%s:%s' % (image_name, tag) for tag in tags]
+                image, _ = split_image_tag(image_tag)
+                push_tags = ['%s:%s' % (image, tag) for tag in tags]
             else:
                 push_tags = [image_tag]
 
