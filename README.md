@@ -40,6 +40,13 @@ docker-ci-deploy --login 'janedoe:pa$$word' \
 ```
 This will result in the tags `my-image:alpine` and `my-image:eea981f` (for example) being created and pushed (**Note:** the original tag `my-image:latest` is _not_ pushed).
 
+#### Version tags
+```
+docker-ci-deploy --login 'janedoe:pa$$word' \
+  --tag alpine --tag-version 1.2.3 my-image
+```
+This will result in the tag `my-image:1.2.3-alpine` being created and pushed. If a version is already present in the start of a tag, it will not be added. For example, in the above example if `--tag 1.2.3-alpine` were provided, the image would still be tagged with `1.2.3-alpine`, not `1.2.3-1.2.3-alpine`.
+
 #### Custom registry
 ```
 docker-ci-deploy --login 'janedoe:pa$$word' \
