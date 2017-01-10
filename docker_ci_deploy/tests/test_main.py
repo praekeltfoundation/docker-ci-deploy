@@ -8,8 +8,7 @@ import pytest
 from testtools import ExpectedException
 from testtools.assertions import assert_that
 from testtools.matchers import (
-    AfterPreprocessing as After, Equals, Is, MatchesRegex, MatchesStructure,
-    Not)
+    AfterPreprocessing as After, Equals, MatchesRegex, MatchesStructure, Not)
 
 from docker_ci_deploy.__main__ import (
     cmd, DockerCiDeployRunner, join_image_tag, main, replace_image_registry,
