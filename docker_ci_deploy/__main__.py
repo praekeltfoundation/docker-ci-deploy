@@ -12,7 +12,12 @@ from itertools import chain
 # This is complicated but these are the complete regexes used in Docker to
 # match image tags. We only use these 2 regexes as porting all of the machinery
 # from golang to Python is too much work.
+#
+# Source code in Docker:
 # https://github.com/docker/distribution/blob/v2.6.0-rc.2/reference/regexp.go
+#
+# The pattern strings were extracted using The Go Playground:
+# https://play.golang.org/p/xYRMnoqMqk
 REFERENCE_REGEX = re.compile(
     r'^((?:(?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])(?:(?:\.(?:[a-zA'
     r'-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]))+)?(?::[0-9]+)?/)?[a-z0-9]+('
