@@ -189,15 +189,15 @@ class DockerCiDeployRunner(object):
         for image_tag in images:
             image, tag = split_image_tag(image_tag)
 
-            # Replace registry
+            # Replace registry in image name
             new_image = replace_image_registry(image, registry)
 
-            # Collect the tags to tag with remove existing version and add new
+            # Add the version to any tags
             tags = tags if tags is not None else [tag]
             new_tags = (
                 [replace_tag_version(new_tag, version) for new_tag in tags])
 
-            # Finally, rejoin the image and tag parts
+            # Finally, rejoin the image name and tag parts
             new_image_tags = (
                 [join_image_tag(new_image, new_tag) for new_tag in new_tags])
 
