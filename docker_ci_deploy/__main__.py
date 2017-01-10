@@ -26,7 +26,7 @@ def split_image_tag(image_tag):
 
 def join_image_tag(image, tag):
     """ Join an image name and tag. """
-    if tag is None or not tag:
+    if not tag:
         return image
 
     return ':'.join((image, tag))
@@ -79,7 +79,7 @@ def _join_tag_version(tag, version):
     Join a tag (not image tag) and version by prepending the version to the tag
     with a '-' character.
     """
-    if tag is None or not tag:
+    if not tag:
         return version
 
     return '-'.join((version, tag))
