@@ -4,6 +4,7 @@ import stat
 import sys
 from subprocess import CalledProcessError
 
+import pytest
 from testtools import ExpectedException
 from testtools.assertions import assert_that
 from testtools.matchers import (
@@ -11,7 +12,8 @@ from testtools.matchers import (
     Not)
 
 from docker_ci_deploy.__main__ import (
-    cmd, DockerCiDeployRunner, main, split_image_tag)
+    cmd, DockerCiDeployRunner, join_image_tag, main, replace_image_registry,
+    replace_tag_version, split_image_tag)
 
 """ split_image_tag() """
 
@@ -72,6 +74,86 @@ def test_split_image_tag_unparsable():
     with ExpectedException(ValueError,
                            r"Unable to parse image tag '%s'" % (image_tag,)):
         split_image_tag(image_tag)
+
+
+class TestJoinImageTagFunc(object):
+    def test_image_and_tag(self):
+        """
+        When an image and tag are provided, the two should be joined using a
+        ':' character.
+        """
+        image_tag = join_image_tag('bar', 'foo')
+        assert_that(image_tag, Equals('bar:foo'))
+
+    def test_tag_is_none(self):
+        """ When the provided tag is None, the image should be returned. """
+        image_tag = join_image_tag('bar', None)
+        assert_that(image_tag, Equals('bar'))
+
+    def test_tag_is_empty(self):
+        """ When the provided tag is empty, the image should be returned. """
+        image_tag = join_image_tag('bar', '')
+        assert_that(image_tag, Equals('bar'))
+
+
+class TestReplaceImageRegistryFunc(object):
+    def test_image_without_registry(self):
+        """
+        When an image without a registry is provided, the registry should be
+        prepended to the image with a '/' character.
+        """
+        image = replace_image_registry('bar', 'registry:5000')
+        assert_that(image, Equals('registry:5000/bar'))
+
+    @pytest.mark.xfail
+    def test_image_with_registry(self):
+        """
+        When an image is provided that already specifies a registry, that
+        registry should be replaced with the given registry.
+        """
+        image = replace_image_registry('registry:5000/bar', 'registry2:5000')
+        assert_that(image, Equals('registry:5000/bar'))
+
+    def test_registry_is_none(self):
+        """
+        When an image is provided and the provided registry is None, the image
+        should be returned.
+        """
+        image = replace_image_registry('bar', None)
+        assert_that(image, Equals('bar'))
+
+
+class TestReplaceTagVersionFunc(object):
+    def test_tag_without_version(self):
+        """
+        When a tag does not start with the version, the version should be
+        prepended to the tag with a '-' character.
+        """
+        tag = replace_tag_version('foo', '1.2.3')
+        assert_that(tag, Equals('1.2.3-foo'))
+
+    def test_tag_with_version(self):
+        """
+        When a tag starts with the version, then the version and '-' separator
+        should be removed from the tag and the remaining tag returned.
+        """
+        tag = replace_tag_version('1.2.3-foo', '1.2.3')
+        assert_that(tag, Equals('1.2.3-foo'))
+
+    def test_tag_is_version(self):
+        """ When a tag is equal to the version, the tag should be returned. """
+        tag = replace_tag_version('1.2.3', '1.2.3')
+        assert_that(tag, Equals('1.2.3'))
+
+    def test_tag_is_none(self):
+        """ When a tag is None, the version should be returned. """
+        tag = replace_tag_version(None, '1.2.3')
+        assert_that(tag, Equals('1.2.3'))
+
+    def test_version_is_none(self):
+        """ When the version is None, the tag should be returned. """
+        tag = replace_tag_version('foo', None)
+        assert_that(tag, Equals('foo'))
 
 
 """ cmd() """
@@ -210,6 +292,83 @@ class TestDockerCiDeployRunner(object):
             'push test-image:def'
         ])
 
+    def test_version_no_tag(self, capfd):
+        """
+        When a version is provided and there is no tag, the image should be
+        tagged with the version.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        runner.run(['test-image'], version='1.2.3')
+
+        assert_output_lines(capfd, [
+            'tag test-image test-image:1.2.3',
+            'push test-image:1.2.3',
+        ])
+
+    def test_version_existing_tag(self, capfd):
+        """
+        When a version is provided and there is an existing tag in the image
+        tag, then the version should be prepende to the tag.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        runner.run(['test-image:abc'], version='1.2.3')
+
+        assert_output_lines(capfd, [
+            'tag test-image:abc test-image:1.2.3-abc',
+            'push test-image:1.2.3-abc',
+        ])
+
+    def test_version_existing_tag_with_version(self, capfd):
+        """
+        When a version is provided and there is an existing tag in the image
+        tag that already starts with the version then the image should not be
+        retagged.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        runner.run(['test-image:1.2.3-abc'], version='1.2.3')
+
+        assert_output_lines(capfd, [
+            'push test-image:1.2.3-abc',
+        ])
+
+    def test_version_existing_tag_is_version(self, capfd):
+        """
+        When a version is provided and there is an existing tag in the image
+        tag that is equal to the version then the image should not be retagged.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        runner.run(['test-image:1.2.3'], version='1.2.3')
+
+        assert_output_lines(capfd, [
+            'push test-image:1.2.3',
+        ])
+
+    def test_version_new_tag(self, capfd):
+        """
+        When a version is provided as well as a new tag, the version should be
+        prepended to the new tag and the image tagged with the new tag.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        runner.run(['test-image:abc'], tags=['def'], version='1.2.3')
+
+        assert_output_lines(capfd, [
+            'tag test-image:abc test-image:1.2.3-def',
+            'push test-image:1.2.3-def',
+        ])
+
+    def test_version_new_tag_with_version(self, capfd):
+        """
+        When a version is provided as well as a new tag, and the new tag starts
+        with the version, then the image should be tagged with the new version.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        runner.run(['test-image:abc'], tags=['1.2.3-def'], version='1.2.3')
+
+        assert_output_lines(capfd, [
+            'tag test-image:abc test-image:1.2.3-def',
+            'push test-image:1.2.3-def',
+        ])
+
     def test_registry(self, capfd):
         """
         When a registry is provided to the runner, the image should be tagged
@@ -287,50 +446,57 @@ class TestDockerCiDeployRunner(object):
 
     def test_all_options(self, capfd):
         """
-        When tags, a registry, and login details are provided to the runner,
-        the image should be tagged with the tags and registry, a login request
-        should be made to the specified registry, and the tags should be
-        pushed.
+        When tags, a version, a registry, and login details are provided to the
+        runner, the image should be tagged with the tags, version and registry,
+        a login request should be made to the specified registry, and the tags
+        should be pushed.
         """
         runner = DockerCiDeployRunner(executable='echo')
         runner.run(['test-image:tag'], tags=['latest', 'best'],
+                   version='1.2.3',
                    registry='registry.example.com:5000',
                    login='janedoe:pa55word')
 
         assert_output_lines(capfd, [
-            'tag test-image:tag registry.example.com:5000/test-image:latest',
-            'tag test-image:tag registry.example.com:5000/test-image:best',
+            ('tag test-image:tag '
+                'registry.example.com:5000/test-image:1.2.3-latest'),
+            ('tag test-image:tag '
+                'registry.example.com:5000/test-image:1.2.3-best'),
             'login --username janedoe --password pa55word '
             'registry.example.com:5000',
-            'push registry.example.com:5000/test-image:latest',
-            'push registry.example.com:5000/test-image:best'
+            'push registry.example.com:5000/test-image:1.2.3-latest',
+            'push registry.example.com:5000/test-image:1.2.3-best'
         ])
 
     def test_all_options_multiple_images(self, capfd):
         """
-        When multiple images, tags, a registry, and login details are provided
-        to the runner, all the image should be tagged with the tags and
-        registry, a login request should be made to the specified registry, and
-        the tags should be pushed.
+        When multiple images, tags, a version, a registry, and login details
+        are provided to the runner, all the image should be tagged with the
+        tags, a version and registry, a login request should be made to the
+        specified registry, and the tags should be pushed.
         """
         runner = DockerCiDeployRunner(executable='echo')
         runner.run(['test-image:tag', 'test-image2:tag2'],
                    tags=['latest', 'best'],
+                   version='1.2.3',
                    registry='registry.example.com:5000',
                    login='janedoe:pa55word')
 
         assert_output_lines(capfd, [
-            'tag test-image:tag registry.example.com:5000/test-image:latest',
-            'tag test-image:tag registry.example.com:5000/test-image:best',
+            ('tag test-image:tag '
+                'registry.example.com:5000/test-image:1.2.3-latest'),
+            ('tag test-image:tag '
+                'registry.example.com:5000/test-image:1.2.3-best'),
             ('tag test-image2:tag2 '
-                'registry.example.com:5000/test-image2:latest'),
-            'tag test-image2:tag2 registry.example.com:5000/test-image2:best',
+                'registry.example.com:5000/test-image2:1.2.3-latest'),
+            ('tag test-image2:tag2 '
+                'registry.example.com:5000/test-image2:1.2.3-best'),
             'login --username janedoe --password pa55word '
             'registry.example.com:5000',
-            'push registry.example.com:5000/test-image:latest',
-            'push registry.example.com:5000/test-image:best',
-            'push registry.example.com:5000/test-image2:latest',
-            'push registry.example.com:5000/test-image2:best',
+            'push registry.example.com:5000/test-image:1.2.3-latest',
+            'push registry.example.com:5000/test-image:1.2.3-best',
+            'push registry.example.com:5000/test-image2:1.2.3-latest',
+            'push registry.example.com:5000/test-image2:1.2.3-best',
         ])
 
     def test_dry_run(self, capfd):

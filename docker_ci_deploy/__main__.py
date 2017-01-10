@@ -24,9 +24,68 @@ def split_image_tag(image_tag):
     return match.group(1), match.group(2)
 
 
-def strip_image_registry(image):
+def join_image_tag(image, tag):
+    """ Join an image name and tag. """
+    if tag is None or not tag:
+        return image
+
+    return ':'.join((image, tag))
+
+
+def replace_image_registry(image, registry):
+    if registry is None:
+        return image
+
+    return _join_image_registry(_strip_image_registry(image), registry)
+
+
+def _strip_image_registry(image):
     # TODO: Not yet sure how to differentiate REGISTRYHOST from a NAME segment.
     return image
+
+
+def _join_image_registry(image, registry):
+    if registry is None:
+        return image
+
+    return '/'.join((registry, image))
+
+
+def replace_tag_version(tag, version):
+    """
+    Replace the version information in the tag with the given version.
+
+    XXXX: will make more sense with more features...
+    """
+    if version is None:
+        return tag
+
+    return _join_tag_version(_strip_tag_version(tag, version), version)
+
+
+def _strip_tag_version(tag, version):
+    """
+    Strip the version from the front of the given tag (not image tag) if the
+    version is present.
+    """
+    if tag is None:
+        return None
+    if tag == version:
+        return ''
+    if tag.startswith(version + '-'):
+        return tag[len(version) + 1:]
+    return tag
+
+
+def _join_tag_version(tag, version):
+    """
+    Join a tag (not image tag) and version by prepending the version to the tag
+    with a '-' character.
+    """
+    if tag is None or not tag:
+        return version
+
+    return '-'.join((version, tag))
 
 
 def cmd(args, sanitised_args=None):
@@ -111,7 +170,7 @@ class DockerCiDeployRunner(object):
         """ Run ``docker push`` with the given tag. """
         self._docker_cmd(['push', tag])
 
-    def run(self, images, tags=None, login=None, registry=None):
+    def run(self, images, tags=None, version=None, login=None, registry=None):
         """
         Run the script - tag, login and push as necessary.
 
@@ -120,6 +179,8 @@ class DockerCiDeployRunner(object):
         :param tags:
             A list of tags to tag the image with or None if no new tags are
             required.
+        :param version:
+            The version to prepend tags with.
         :param login:
             Login details for the Docker registry in the form
             <username>:<password>.
@@ -127,30 +188,26 @@ class DockerCiDeployRunner(object):
             The address to the Docker registry host.
         """
         # Build map of images to tags to push with provided tags
-        image_to_push_tags = []
+        tag_map = []
         for image_tag in images:
-            if tags is not None:
-                image, _ = split_image_tag(image_tag)
-                push_tags = ['%s:%s' % (image, tag) for tag in tags]
-            else:
-                push_tags = [image_tag]
+            image, tag = split_image_tag(image_tag)
 
-            image_to_push_tags.append((image_tag, push_tags))
+            # Replace registry
+            new_image = replace_image_registry(image, registry)
 
-        # Update tags with registry host information
-        if registry is not None:
-            new_image_to_push_tags = []
-            for image_tag, push_tags in image_to_push_tags:
-                new_push_tags = (
-                    ['%s/%s' % (registry, strip_image_registry(push_tag))
-                     for push_tag in push_tags])
+            # Collect the tags to tag with remove existing version and add new
+            tags = tags if tags is not None else [tag]
+            new_tags = (
+                [replace_tag_version(new_tag, version) for new_tag in tags])
 
-                new_image_to_push_tags.append((image_tag, new_push_tags))
+            # Finally, rejoin the image and tag parts
+            new_image_tags = (
+                [join_image_tag(new_image, new_tag) for new_tag in new_tags])
 
-            image_to_push_tags = new_image_to_push_tags
+            tag_map.append((image_tag, new_image_tags))
 
-        # Actually tag the image
-        for image_tag, push_tags in image_to_push_tags:
+        # Tag the images
+        for image_tag, push_tags in tag_map:
             for push_tag in push_tags:
                 if push_tag != image_tag:
                     self._log(
@@ -165,7 +222,7 @@ class DockerCiDeployRunner(object):
             self.docker_login(username, password, registry)
 
         # Finally, push the tags
-        for _, push_tags in image_to_push_tags:
+        for _, push_tags in tag_map:
             for push_tag in push_tags:
                 self._log('Pushing tag "%s"...' % (push_tag,), if_verbose=True)
                 self.docker_push(push_tag)
@@ -177,6 +234,8 @@ def main(raw_args=sys.argv[1:]):
     parser.add_argument('-t', '--tag', nargs='*',
                         action='append',
                         help='Tags to tag the image with before pushing')
+    parser.add_argument('--tag-version',
+                        help='Prepend the given version to all tags')
     parser.add_argument('-l', '--login', nargs='?',
                         help='Login details in the form <username>:<password> '
                              'to login to the registry')
@@ -205,8 +264,8 @@ def main(raw_args=sys.argv[1:]):
     tags = chain.from_iterable(args.tag) if args.tag is not None else None
 
     try:
-        runner.run(
-            args.image, tags=tags, login=args.login, registry=args.registry)
+        runner.run(args.image, tags=tags, version=args.tag_version,
+                   login=args.login, registry=args.registry)
     except BaseException as e:
         if args.debug:
             raise
