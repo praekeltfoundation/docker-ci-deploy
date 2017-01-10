@@ -9,15 +9,29 @@ import sys
 from itertools import chain
 
 
+# This is complicated but these are the complete regexes used in Docker to
+# match image tags. We only use these 2 regexes as porting all of the machinery
+# from golang to Python is too much work.
+# https://github.com/docker/distribution/blob/v2.6.0-rc.2/reference/regexp.go
+REFERENCE_REGEX = re.compile(
+    r'^((?:(?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])(?:(?:\.(?:[a-zA'
+    r'-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]))+)?(?::[0-9]+)?/)?[a-z0-9]+('
+    r'?:(?:(?:[._]|__|[-]*)[a-z0-9]+)+)?(?:(?:/[a-z0-9]+(?:(?:(?:[._]|__|[-]*)'
+    r'[a-z0-9]+)+)?)+)?)(?::([\w][\w.-]{0,127}))?(?:@([A-Za-z][A-Za-z0-9]*(?:['
+    r'-_+.][A-Za-z][A-Za-z0-9]*)*[:][[:xdigit:]]{32,}))?$')
+
+ANCHORED_NAME_REGEX = re.compile(
+    r'^(?:((?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])(?:(?:\.(?:[a-zA'
+    r'-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]))+)?(?::[0-9]+)?)/)?([a-z0-9]'
+    r'+(?:(?:(?:[._]|__|[-]*)[a-z0-9]+)+)?(?:(?:/[a-z0-9]+(?:(?:(?:[._]|__|[-]'
+    r'*)[a-z0-9]+)+)?)+)?)$')
+
+
 def split_image_tag(image_tag):
     """
     Split the given image tag into its name and tag parts (<name>[:<tag>]).
-
-    Full tags are of the form [REGISTRYHOST/][NAME/...]NAME[:TAG] where the
-    REGISTRYHOST may contain a ':' but no '/', the NAME parts may contain '/'
-    but no ':', and the TAG part may contain neither ':' nor '/'.
     """
-    match = re.match(r'^((?:[^\/]+\/)?[^:]+)(?::([^:\/]+))?$', image_tag)
+    match = REFERENCE_REGEX.match(image_tag)
     if match is None:
         raise ValueError("Unable to parse image tag '%s'" % (image_tag,))
 
@@ -40,8 +54,11 @@ def replace_image_registry(image, registry):
 
 
 def _strip_image_registry(image):
-    # TODO: Not yet sure how to differentiate REGISTRYHOST from a NAME segment.
-    return image
+    match = ANCHORED_NAME_REGEX.match(image)
+    if match is None:
+        raise ValueError("Unable to parse image name '%s'" % (image,))
+
+    return match.group(2)
 
 
 def _join_image_registry(image, registry):
