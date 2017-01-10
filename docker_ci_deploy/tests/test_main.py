@@ -112,6 +112,16 @@ class TestReplaceImageRegistryFunc(object):
         image = replace_image_registry('bar', None)
         assert_that(image, Equals('bar'))
 
+    def test_image_unparsable(self):
+        """
+        Given a malformed image name, replace_image_registry should throw an
+        error.
+        """
+        image = 'foo:5000:port/name'
+        with ExpectedException(
+                ValueError, r"Unable to parse image name '%s'" % (image,)):
+            replace_image_registry(image, 'registry:5000')
+
 
 class TestReplaceTagVersionFunc(object):
     def test_tag_without_version(self):
