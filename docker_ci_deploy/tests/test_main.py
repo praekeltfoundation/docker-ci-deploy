@@ -103,6 +103,10 @@ class TestReplaceImageRegistryFunc(object):
         """
         When an image is provided that already specifies a registry, that
         registry should be replaced with the given registry.
+
+        This is currently expected to fail as we haven't implemented the logic
+        to strip the registry address from the rest of a tag (we just return
+        the whole tag).
         """
         image = replace_image_registry('registry:5000/bar', 'registry2:5000')
         assert_that(image, Equals('registry:5000/bar'))
