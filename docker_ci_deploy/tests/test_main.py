@@ -23,11 +23,11 @@ class TestSplitImageTagFunc(object):
         split_image_tag should return the registry and name as the image and
         the tag part as the tag.
         """
-        image_tag = 'registry.example.com:5000/user/name:tag'
-        image, tag = split_image_tag(image_tag)
+        image_and_tag = split_image_tag(
+            'registry.example.com:5000/user/name:tag')
 
-        assert_that(image, Equals('registry.example.com:5000/user/name'))
-        assert_that(tag, Equals('tag'))
+        assert_that(image_and_tag, Equals(
+            ('registry.example.com:5000/user/name', 'tag')))
 
     def test_no_tag(self):
         """
@@ -35,11 +35,10 @@ class TestSplitImageTagFunc(object):
         split_image_tag should return the image name unchanged and None for the
         tag.
         """
-        image_tag = 'registry.example.com:5000/user/name'
-        image, tag = split_image_tag(image_tag)
+        image_and_tag = split_image_tag('registry.example.com:5000/user/name')
 
-        assert_that(image, Equals(image_tag))
-        assert_that(tag, Is(None))
+        assert_that(image_and_tag, Equals(
+            ('registry.example.com:5000/user/name', None)))
 
     def test_no_registry(self):
         """
@@ -47,22 +46,18 @@ class TestSplitImageTagFunc(object):
         should return the user and name part for the name and the tag part for
         the tag.
         """
-        image_tag = 'user/name:tag'
-        image, tag = split_image_tag(image_tag)
+        image_and_tag = split_image_tag('user/name:tag')
 
-        assert_that(image, Equals('user/name'))
-        assert_that(tag, Equals('tag'))
+        assert_that(image_and_tag, Equals(('user/name', 'tag')))
 
     def test_no_registry_or_tag(self):
         """
         Given an image tag with only name components, split_image_tag should
         return the image name unchanged and None for the tag.
         """
-        image_tag = 'user/name'
-        image, tag = split_image_tag(image_tag)
+        image_and_tag = split_image_tag('user/name')
 
-        assert_that(image, Equals(image_tag))
-        assert_that(tag, Is(None))
+        assert_that(image_and_tag, Equals(('user/name', None)))
 
     def test_tag_unparsable(self):
         """
