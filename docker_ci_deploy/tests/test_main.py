@@ -15,65 +15,63 @@ from docker_ci_deploy.__main__ import (
     cmd, DockerCiDeployRunner, join_image_tag, main, replace_image_registry,
     replace_tag_version, split_image_tag)
 
-""" split_image_tag() """
 
+class TestSplitImageTagFunc(object):
+    def test_split(self):
+        """
+        Given an image tag with registry, name and tag components,
+        split_image_tag should return the registry and name as the image and
+        the tag part as the tag.
+        """
+        image_tag = 'registry.example.com:5000/user/name:tag'
+        image, tag = split_image_tag(image_tag)
 
-def test_split_image_tag():
-    """
-    Given an image tag with registry, name and tag components, split_image_tag
-    should return the registry and name as the image and the tag part as the
-    tag.
-    """
-    image_tag = 'registry.example.com:5000/user/name:tag'
-    image, tag = split_image_tag(image_tag)
+        assert_that(image, Equals('registry.example.com:5000/user/name'))
+        assert_that(tag, Equals('tag'))
 
-    assert_that(image, Equals('registry.example.com:5000/user/name'))
-    assert_that(tag, Equals('tag'))
+    def test_no_tag(self):
+        """
+        Given an image tag with only registry and name components,
+        split_image_tag should return the image name unchanged and None for the
+        tag.
+        """
+        image_tag = 'registry.example.com:5000/user/name'
+        image, tag = split_image_tag(image_tag)
 
+        assert_that(image, Equals(image_tag))
+        assert_that(tag, Is(None))
 
-def test_split_image_tag_no_tag():
-    """
-    Given an image tag with only registry and name components, split_image_tag
-    should return the image name unchanged and None for the tag.
-    """
-    image_tag = 'registry.example.com:5000/user/name'
-    image, tag = split_image_tag(image_tag)
+    def test_no_registry(self):
+        """
+        Given an image tag with only name and tag components, split_image_tag
+        should return the user and name part for the name and the tag part for
+        the tag.
+        """
+        image_tag = 'user/name:tag'
+        image, tag = split_image_tag(image_tag)
 
-    assert_that(image, Equals(image_tag))
-    assert_that(tag, Is(None))
+        assert_that(image, Equals('user/name'))
+        assert_that(tag, Equals('tag'))
 
+    def test_no_registry_or_tag(self):
+        """
+        Given an image tag with only name components, split_image_tag should
+        return the image name unchanged and None for the tag.
+        """
+        image_tag = 'user/name'
+        image, tag = split_image_tag(image_tag)
 
-def test_split_image_tag_no_registry():
-    """
-    Given an image tag with only name and tag components, split_image_tag
-    should return the user and name part for the name and the tag part for the
-    tag.
-    """
-    image_tag = 'user/name:tag'
-    image, tag = split_image_tag(image_tag)
+        assert_that(image, Equals(image_tag))
+        assert_that(tag, Is(None))
 
-    assert_that(image, Equals('user/name'))
-    assert_that(tag, Equals('tag'))
-
-
-def test_split_image_tag_no_registry_or_tag():
-    """
-    Given an image tag with only name components, split_image_tag should return
-    the image name unchanged and None for the tag.
-    """
-    image_tag = 'user/name'
-    image, tag = split_image_tag(image_tag)
-
-    assert_that(image, Equals(image_tag))
-    assert_that(tag, Is(None))
-
-
-def test_split_image_tag_unparsable():
-    """ Given a malformed image tag, split_image_tag should throw an error. """
-    image_tag = 'this:is:invalid/user:test/name:tag/'
-    with ExpectedException(ValueError,
-                           r"Unable to parse image tag '%s'" % (image_tag,)):
-        split_image_tag(image_tag)
+    def test_tag_unparsable(self):
+        """
+        Given a malformed image tag, split_image_tag should throw an error.
+        """
+        image_tag = 'this:is:invalid/user:test/name:tag/'
+        with ExpectedException(
+                ValueError, r"Unable to parse image tag '%s'" % (image_tag,)):
+            split_image_tag(image_tag)
 
 
 class TestJoinImageTagFunc(object):
