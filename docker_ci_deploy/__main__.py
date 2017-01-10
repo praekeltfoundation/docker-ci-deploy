@@ -45,9 +45,6 @@ def _strip_image_registry(image):
 
 
 def _join_image_registry(image, registry):
-    if registry is None:
-        return image
-
     return '/'.join((registry, image))
 
 
