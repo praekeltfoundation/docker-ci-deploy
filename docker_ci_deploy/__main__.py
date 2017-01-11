@@ -9,15 +9,49 @@ import sys
 from itertools import chain
 
 
+# Reference regexes for parsing Docker image tags into separate parts.
+# https://github.com/docker/distribution/blob/v2.6.0-rc.2/reference/regexp.go
+HOSTNAME_COMPONENT_PATTERN = (
+    r'(?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])')
+# hostname = hostcomponent ['.' hostcomponent]* [':' port-number]
+HOSTNAME_PATTERN = (
+    HOSTNAME_COMPONENT_PATTERN +
+    r'(?:(?:\.{})+)?'.format(HOSTNAME_COMPONENT_PATTERN) +
+    r'(?::[0-9]+)?')
+
+NAME_COMPONENT_PATTERN = r'[a-z0-9]+(?:(?:(?:[._]|__|[-]*)[a-z0-9]+)+)?'
+# name = [hostname '/'] component ['/' component]*
+NAME_PATTERN = (
+    r'(?:{}/)?'.format(HOSTNAME_PATTERN) +
+    NAME_COMPONENT_PATTERN +
+    r'(?:(?:/{})+)?'.format(NAME_COMPONENT_PATTERN))
+
+TAG_PATTERN = r'[\w][\w.-]{0,127}'
+DIGEST_PATTERN = (
+    r'[A-Za-z][A-Za-z0-9]*(?:[-_+.][A-Za-z][A-Za-z0-9]*)*[:][[:xdigit:]]{32,}')
+
+# REFERENCE_REGEX is the full supported format of a reference. The regex is
+# anchored and has capturing groups for name, tag, and digest components.
+# reference = name [ ":" tag ] [ "@" digest ]
+REFERENCE_REGEX = re.compile(
+    r'^({})'.format(NAME_PATTERN) +
+    r'(?::({}))?'.format(TAG_PATTERN) +
+    r'(?:@({}))?$'.format(DIGEST_PATTERN))
+
+# ANCHORED_NAME_REGEX is used to parse a name value, capturing the hostname and
+# trailing components.
+ANCHORED_NAME_REGEX = re.compile(r'^{}$'.format(
+    r'(?:({})/)?'.format(HOSTNAME_PATTERN) +
+    r'({})'.format(
+        NAME_COMPONENT_PATTERN +
+        r'(?:(?:/{})+)?'.format(NAME_COMPONENT_PATTERN))))
+
+
 def split_image_tag(image_tag):
     """
     Split the given image tag into its name and tag parts (<name>[:<tag>]).
-
-    Full tags are of the form [REGISTRYHOST/][NAME/...]NAME[:TAG] where the
-    REGISTRYHOST may contain a ':' but no '/', the NAME parts may contain '/'
-    but no ':', and the TAG part may contain neither ':' nor '/'.
     """
-    match = re.match(r'^((?:[^\/]+\/)?[^:]+)(?::([^:\/]+))?$', image_tag)
+    match = REFERENCE_REGEX.match(image_tag)
     if match is None:
         raise ValueError("Unable to parse image tag '%s'" % (image_tag,))
 
@@ -36,12 +70,22 @@ def replace_image_registry(image, registry):
     if registry is None:
         return image
 
+    # First try just append the registry without stripping the old
+    joined_image = _join_image_registry(image, registry)
+    # Check if that worked and return if so
+    if ANCHORED_NAME_REGEX.match(joined_image) is not None:
+        return joined_image
+
+    # If the tag was invalid, try strip the existing registry first
     return _join_image_registry(_strip_image_registry(image), registry)
 
 
 def _strip_image_registry(image):
-    # TODO: Not yet sure how to differentiate REGISTRYHOST from a NAME segment.
-    return image
+    match = ANCHORED_NAME_REGEX.match(image)
+    if match is None:
+        raise ValueError("Unable to parse image name '%s'" % (image,))
+
+    return match.group(2)
 
 
 def _join_image_registry(image, registry):

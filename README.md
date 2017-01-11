@@ -56,6 +56,8 @@ docker-ci-deploy --login 'janedoe:pa$$word' \
 ```
 This will result in the tags `my-registry.example.com:5000/my-image:alpine` and `my-registry.example.com:5000/my-image:eea981f` being created and pushed. A login request will be made to `my-registry.example.com:5000`.
 
+**NOTE:** The reference grammar for Docker image tags (as of Docker 1.13.0) is not strict enough to distinguish between a registry address and an image name component in all cases. For example, the tag `praekeltorg/alpine-python` could refer to the image with name `alpine-python` stored in the registry with hostname `praekeltorg` *or* it could be an image called `praekeltorg/alpine-python` stored in the default registry. `docker-ci-deploy` will first just prepend the registry address to the tag and only attempt to remove an existing registry address from the tag if the new tag is invalid.
+
 #### Multiple images
 You can provide multiple images to `docker-ci-deploy` and it will tag and push all of them:
 ```

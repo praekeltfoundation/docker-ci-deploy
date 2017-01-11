@@ -4,7 +4,6 @@ import stat
 import sys
 from subprocess import CalledProcessError
 
-import pytest
 from testtools import ExpectedException
 from testtools.assertions import assert_that
 from testtools.matchers import (
@@ -97,18 +96,24 @@ class TestReplaceImageRegistryFunc(object):
         image = replace_image_registry('bar', 'registry:5000')
         assert_that(image, Equals('registry:5000/bar'))
 
-    @pytest.mark.xfail
     def test_image_with_registry(self):
         """
         When an image is provided that already specifies a registry, that
         registry should be replaced with the given registry.
-
-        This is currently expected to fail as we haven't implemented the logic
-        to strip the registry address from the rest of a tag (we just return
-        the whole tag).
         """
         image = replace_image_registry('registry:5000/bar', 'registry2:5000')
-        assert_that(image, Equals('registry:5000/bar'))
+        assert_that(image, Equals('registry2:5000/bar'))
+
+    def test_image_might_have_registry(self):
+        """
+        When an image is provided that looks like it *may* already specify a
+        registry, the registry should just be prepended to the image name and
+        returned, provided that the resulting image name is valid.
+        """
+        image = replace_image_registry(
+            'praekeltorg/alpine-python', 'registry:5000')
+
+        assert_that(image, Equals('registry:5000/praekeltorg/alpine-python'))
 
     def test_registry_is_none(self):
         """
@@ -117,6 +122,16 @@ class TestReplaceImageRegistryFunc(object):
         """
         image = replace_image_registry('bar', None)
         assert_that(image, Equals('bar'))
+
+    def test_image_unparsable(self):
+        """
+        Given a malformed image name, replace_image_registry should throw an
+        error.
+        """
+        image = 'foo:5000:port/name'
+        with ExpectedException(
+                ValueError, r"Unable to parse image name '%s'" % (image,)):
+            replace_image_registry(image, 'registry:5000')
 
 
 class TestReplaceTagVersionFunc(object):
