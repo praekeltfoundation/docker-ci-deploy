@@ -92,16 +92,32 @@ def _join_image_registry(image, registry):
     return '/'.join((registry, image))
 
 
-def replace_tag_version(tag, version):
+def generate_versioned_tags(tag, version, latest=False):
     """
-    Replace the version information in the tag with the given version.
+    Generate a list of tags based on the given tag and version information.
+    Prepends the given version
 
-    XXXX: will make more sense with more features...
+    :param tag:
+        The input tag to generate version tags from. The tag 'latest' is
+        considered a special-case and will be treated like an empty tag (i.e.
+        the version will be returned as the new tag).
+    :param version:
+        The version to prepend to the tag. If None, the tag will be returned
+        unchanged.
+    :param latest:
+        If True, return the tag without the version as well as the versioned
+        tag(s). Include the tag 'latest' if the given tag is empty or None.
+    :rtype: list
     """
     if version is None:
-        return tag
+        return ['latest'] if latest and not tag else [tag]
 
-    return _join_tag_version(_strip_tag_version(tag, version), version)
+    stripped_tag = _strip_tag_version(tag, version)
+    if not stripped_tag or stripped_tag == 'latest':
+        return [version, 'latest'] if latest else [version]
+
+    versioned_tag = _join_tag_version(stripped_tag, version)
+    return [versioned_tag, stripped_tag] if latest else [versioned_tag]
 
 
 def _strip_tag_version(tag, version):
@@ -211,7 +227,8 @@ class DockerCiDeployRunner(object):
         """ Run ``docker push`` with the given tag. """
         self._docker_cmd(['push', tag])
 
-    def run(self, images, tags=None, version=None, login=None, registry=None):
+    def run(self, images, tags=None, version=None, latest=False, login=None,
+            registry=None):
         """
         Run the script - tag, login and push as necessary.
 
@@ -222,6 +239,8 @@ class DockerCiDeployRunner(object):
             required.
         :param version:
             The version to prepend tags with.
+        :param latest:
+            Whether or not to tag this image with the latest tag.
         :param login:
             Login details for the Docker registry in the form
             <username>:<password>.
@@ -238,8 +257,10 @@ class DockerCiDeployRunner(object):
 
             # Add the version to any tags
             tags = tags if tags is not None else [tag]
-            new_tags = (
-                [replace_tag_version(new_tag, version) for new_tag in tags])
+            new_tags = []
+            for new_tag in tags:
+                new_tags.extend(
+                    generate_versioned_tags(new_tag, version, latest))
 
             # Finally, rejoin the image name and tag parts
             new_image_tags = (
@@ -277,6 +298,9 @@ def main(raw_args=sys.argv[1:]):
                         help='Tags to tag the image with before pushing')
     parser.add_argument('--tag-version',
                         help='Prepend the given version to all tags')
+    parser.add_argument('--tag-latest',
+                        help="Tag the image with the 'latest' tag or a tag "
+                             'without a version')
     parser.add_argument('-l', '--login', nargs='?',
                         help='Login details in the form <username>:<password> '
                              'to login to the registry')
@@ -306,7 +330,8 @@ def main(raw_args=sys.argv[1:]):
 
     try:
         runner.run(args.image, tags=tags, version=args.tag_version,
-                   login=args.login, registry=args.registry)
+                   latest=args.tag_latest, login=args.login,
+                   registry=args.registry)
     except BaseException as e:
         if args.debug:
             raise
