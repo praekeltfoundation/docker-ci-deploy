@@ -257,15 +257,15 @@ class DockerCiDeployRunner(object):
             new_image = replace_image_registry(image, registry)
 
             # Add the version to any tags
-            tags = tags if tags is not None else [tag]
-            new_tags = []
-            for new_tag in tags:
-                new_tags.extend(
+            new_tags = tags if tags is not None else [tag]
+            version_tags = []
+            for new_tag in new_tags:
+                version_tags.extend(
                     generate_versioned_tags(new_tag, version, latest))
 
             # Finally, rejoin the image name and tag parts
-            new_image_tags = (
-                [join_image_tag(new_image, new_tag) for new_tag in new_tags])
+            new_image_tags = [join_image_tag(new_image, version_tag)
+                              for version_tag in version_tags]
 
             tag_map.append((image_tag, new_image_tags))
 
