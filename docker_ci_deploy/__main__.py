@@ -16,15 +16,15 @@ HOSTNAME_COMPONENT_PATTERN = (
 # hostname = hostcomponent ['.' hostcomponent]* [':' port-number]
 HOSTNAME_PATTERN = (
     HOSTNAME_COMPONENT_PATTERN +
-    r'(?:(?:\.' + HOSTNAME_COMPONENT_PATTERN + r')+)?'
+    r'(?:(?:\.{})+)?'.format(HOSTNAME_COMPONENT_PATTERN) +
     r'(?::[0-9]+)?')
 
 NAME_COMPONENT_PATTERN = r'[a-z0-9]+(?:(?:(?:[._]|__|[-]*)[a-z0-9]+)+)?'
 # name = [hostname '/'] component ['/' component]*
 NAME_PATTERN = (
-    r'(?:' + HOSTNAME_PATTERN + r'/)?' +
+    r'(?:{}/)?'.format(HOSTNAME_PATTERN) +
     NAME_COMPONENT_PATTERN +
-    r'(?:(?:/' + NAME_COMPONENT_PATTERN + r')+)?')
+    r'(?:(?:/{})+)?'.format(NAME_COMPONENT_PATTERN))
 
 TAG_PATTERN = r'[\w][\w.-]{0,127}'
 DIGEST_PATTERN = (
@@ -34,17 +34,17 @@ DIGEST_PATTERN = (
 # anchored and has capturing groups for name, tag, and digest components.
 # reference = name [ ":" tag ] [ "@" digest ]
 REFERENCE_REGEX = re.compile(
-    r'^(' + NAME_PATTERN + r')'
-    r'(?::(' + TAG_PATTERN + r'))?'
-    r'(?:@(' + DIGEST_PATTERN + r'))?$')
+    r'^({})'.format(NAME_PATTERN) +
+    r'(?::({}))?'.format(TAG_PATTERN) +
+    r'(?:@({}))?$'.format(DIGEST_PATTERN))
 
 # ANCHORED_NAME_REGEX is used to parse a name value, capturing the hostname and
 # trailing components.
-ANCHORED_NAME_REGEX = re.compile(r'^%s$' % (
-    r'(?:(' + HOSTNAME_PATTERN + r')/)?'
-    r'(%s)' % (
+ANCHORED_NAME_REGEX = re.compile(r'^{}$'.format(
+    r'(?:({})/)?'.format(HOSTNAME_PATTERN) +
+    r'({})'.format(
         NAME_COMPONENT_PATTERN +
-        r'(?:(?:/' + NAME_COMPONENT_PATTERN + r')+)?',),))
+        r'(?:(?:/{})+)?'.format(NAME_COMPONENT_PATTERN))))
 
 
 def split_image_tag(image_tag):
