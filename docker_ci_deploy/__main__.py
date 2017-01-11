@@ -9,27 +9,42 @@ import sys
 from itertools import chain
 
 
-# This is complicated but these are the complete regexes used in Docker to
-# match image tags. We only use these 2 regexes as porting all of the machinery
-# from golang to Python is too much work.
-#
-# Source code in Docker:
+# Reference regexes for parsing Docker image tags into separate parts.
 # https://github.com/docker/distribution/blob/v2.6.0-rc.2/reference/regexp.go
-#
-# The pattern strings were extracted using The Go Playground:
-# https://play.golang.org/p/xYRMnoqMqk
-REFERENCE_REGEX = re.compile(
-    r'^((?:(?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])(?:(?:\.(?:[a-zA'
-    r'-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]))+)?(?::[0-9]+)?/)?[a-z0-9]+('
-    r'?:(?:(?:[._]|__|[-]*)[a-z0-9]+)+)?(?:(?:/[a-z0-9]+(?:(?:(?:[._]|__|[-]*)'
-    r'[a-z0-9]+)+)?)+)?)(?::([\w][\w.-]{0,127}))?(?:@([A-Za-z][A-Za-z0-9]*(?:['
-    r'-_+.][A-Za-z][A-Za-z0-9]*)*[:][[:xdigit:]]{32,}))?$')
+HOSTNAME_COMPONENT_PATTERN = (
+    r'(?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])')
+# hostname = hostcomponent ['.' hostcomponent]* [':' port-number]
+HOSTNAME_PATTERN = (
+    HOSTNAME_COMPONENT_PATTERN +
+    r'(?:(?:\.' + HOSTNAME_COMPONENT_PATTERN + r')+)?'
+    r'(?::[0-9]+)?')
 
-ANCHORED_NAME_REGEX = re.compile(
-    r'^(?:((?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])(?:(?:\.(?:[a-zA'
-    r'-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]))+)?(?::[0-9]+)?)/)?([a-z0-9]'
-    r'+(?:(?:(?:[._]|__|[-]*)[a-z0-9]+)+)?(?:(?:/[a-z0-9]+(?:(?:(?:[._]|__|[-]'
-    r'*)[a-z0-9]+)+)?)+)?)$')
+NAME_COMPONENT_PATTERN = r'[a-z0-9]+(?:(?:(?:[._]|__|[-]*)[a-z0-9]+)+)?'
+# name = [hostname '/'] component ['/' component]*
+NAME_PATTERN = (
+    r'(?:' + HOSTNAME_PATTERN + r'/)?' +
+    NAME_COMPONENT_PATTERN +
+    r'(?:(?:/' + NAME_COMPONENT_PATTERN + r')+)?')
+
+TAG_PATTERN = r'[\w][\w.-]{0,127}'
+DIGEST_PATTERN = (
+    r'[A-Za-z][A-Za-z0-9]*(?:[-_+.][A-Za-z][A-Za-z0-9]*)*[:][[:xdigit:]]{32,}')
+
+# REFERENCE_REGEX is the full supported format of a reference. The regex is
+# anchored and has capturing groups for name, tag, and digest components.
+# reference = name [ ":" tag ] [ "@" digest ]
+REFERENCE_REGEX = re.compile(
+    r'^(' + NAME_PATTERN + r')'
+    r'(?::(' + TAG_PATTERN + r'))?'
+    r'(?:@(' + DIGEST_PATTERN + r'))?$')
+
+# ANCHORED_NAME_REGEX is used to parse a name value, capturing the hostname and
+# trailing components.
+ANCHORED_NAME_REGEX = re.compile(r'^%s$' % (
+    r'(?:(' + HOSTNAME_PATTERN + r')/)?'
+    r'(%s)' % (
+        NAME_COMPONENT_PATTERN +
+        r'(?:(?:/' + NAME_COMPONENT_PATTERN + r')+)?',),))
 
 
 def split_image_tag(image_tag):
