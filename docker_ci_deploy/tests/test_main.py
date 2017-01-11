@@ -104,6 +104,17 @@ class TestReplaceImageRegistryFunc(object):
         image = replace_image_registry('registry:5000/bar', 'registry2:5000')
         assert_that(image, Equals('registry2:5000/bar'))
 
+    def test_image_might_have_registry(self):
+        """
+        When an image is provided that looks like it *may* already specify a
+        registry, the registry should just be prepended to the image name and
+        returned, provided that the resulting image name is valid.
+        """
+        image = replace_image_registry(
+            'praekeltorg/alpine-python', 'registry:5000')
+
+        assert_that(image, Equals('registry:5000/praekeltorg/alpine-python'))
+
     def test_registry_is_none(self):
         """
         When an image is provided and the provided registry is None, the image

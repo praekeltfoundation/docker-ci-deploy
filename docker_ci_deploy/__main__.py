@@ -70,6 +70,13 @@ def replace_image_registry(image, registry):
     if registry is None:
         return image
 
+    # First try just append the registry without stripping the old
+    joined_image = _join_image_registry(image, registry)
+    # Check if that worked and return if so
+    if ANCHORED_NAME_REGEX.match(joined_image) is not None:
+        return joined_image
+
+    # If the tag was invalid, try strip the existing registry first
     return _join_image_registry(_strip_image_registry(image), registry)
 
 
