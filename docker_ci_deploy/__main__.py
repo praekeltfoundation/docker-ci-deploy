@@ -110,7 +110,7 @@ def generate_versioned_tags(tag, version, latest=False):
     :rtype: list
     """
     if version is None:
-        return ['latest'] if latest and not tag else [tag]
+        return [tag]
 
     stripped_tag = _strip_tag_version(tag, version)
     if not stripped_tag or stripped_tag == 'latest':
@@ -237,13 +237,17 @@ class DockerCiDeployRunner(object):
         :param version:
             The version to prepend tags with.
         :param latest:
-            Whether or not to tag this image with the latest tag.
+            Whether or not to tag this image with the latest tag. Requires a
+            version to be provided.
         :param login:
             Login details for the Docker registry in the form
             <username>:<password>.
         :param registry:
             The address to the Docker registry host.
         """
+        if latest and version is None:
+            raise ValueError('A version must be provided if latest is True')
+
         # Build map of images to tags to push with provided tags
         tag_map = []
         for image_tag in images:
@@ -295,7 +299,7 @@ def main(raw_args=sys.argv[1:]):
                         help='Tags to tag the image with before pushing')
     parser.add_argument('--tag-version',
                         help='Prepend the given version to all tags')
-    parser.add_argument('--tag-latest',
+    parser.add_argument('--tag-latest', action='store_true',
                         help='Combine with --tag-version to also tag the '
                              'image without a version so that it is considered'
                              'the latest version')
@@ -320,6 +324,10 @@ def main(raw_args=sys.argv[1:]):
                         help='Tags (full image names) to push')
 
     args = parser.parse_args(raw_args)
+
+    # --tag-latest requires --tag-version
+    if args.tag_latest and args.tag_version is None:
+        parser.error('the --tag-latest option requires --tag-version')
 
     runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose,
                                   executable=args.executable)

@@ -187,22 +187,6 @@ class TestGenerateVersionedTagsFunc(object):
         tags = generate_versioned_tags('latest', '1.2.3', latest=True)
         assert_that(tags, Equals(['1.2.3', 'latest']))
 
-    def test_latest_version_is_none(self):
-        """
-        When latest is True and a tag and version are provided, and the version
-        is None, the the tag should be returned.
-        """
-        tags = generate_versioned_tags('foo', None, latest=True)
-        assert_that(tags, Equals(['foo']))
-
-    def test_latest_tag_and_version_are_none(self):
-        """
-        When latest is True and a tag and version are provided, and the tag and
-        version are None, 'latest' should be returned.
-        """
-        tags = generate_versioned_tags(None, None, latest=True)
-        assert_that(tags, Equals(['latest']))
-
 
 """ cmd() """
 
@@ -457,43 +441,16 @@ class TestDockerCiDeployRunner(object):
             'push test-image:1.2.3',
         ])
 
-    def test_latest_no_tag_no_version(self, capfd):
+    def test_latest_no_version(self):
         """
-        When latest is True and there is no tag or version, the image should be
-        tagged with 'latest'.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image'], latest=True)
-
-        assert_output_lines(capfd, [
-            'tag test-image test-image:latest',
-            'push test-image:latest',
-        ])
-
-    def test_latest_existing_tag_no_version(self, capfd):
-        """
-        When latest is True and there is an existing tag but no version, the
-        image should not be retagged.
+        When latest is True but no version was provided, an error should be
+        raised.
         """
         runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], latest=True)
-
-        assert_output_lines(capfd, [
-            'push test-image:abc',
-        ])
-
-    def test_latest_new_tag_is_latest_no_version(self, capfd):
-        """
-        When latest is True and the new tag is 'latest' but no version is
-        passed, the image should be tagged with the tag 'latest'.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], tags=['latest'], latest=True)
-
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:latest',
-            'push test-image:latest',
-        ])
+        with ExpectedException(
+            ValueError,
+                r'A version must be provided if latest is True'):
+            runner.run(['test-image'], latest=True)
 
     def test_latest_no_tag_with_version(self, capfd):
         """
@@ -538,19 +495,6 @@ class TestDockerCiDeployRunner(object):
             'tag test-image:1.2.3 test-image:latest',
             'push test-image:1.2.3',
             'push test-image:latest',
-        ])
-
-    def test_latest_with_new_tag_no_version(self, capfd):
-        """
-        When latest is True and a new tag is provided but no version is
-        provided, the image should be tagged with the new tag.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], tags=['def'], latest=True)
-
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:def',
-            'push test-image:def',
         ])
 
     def test_latest_with_new_tag_and_version(self, capfd):
@@ -863,6 +807,22 @@ def test_main_image_required(capfd):
     else:
         assert_that(
             err, MatchesRegex(r'.*error: too few arguments$', re.DOTALL))
+
+
+def test_main_tag_latest_requires_tag_version(capfd):
+    """
+    When the main function is given the `--tag-latest` option but no
+    `--tag-version` option, it should exit with a return code of 2 and inform
+    the user of the missing option.
+    """
+    with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+        main(['--tag-latest', 'test-image:abc'])
+
+    out, err = capfd.readouterr()
+    assert_that(out, Equals(''))
+    assert_that(err, MatchesRegex(
+        r'.*error: the --tag-latest option requires --tag-version$', re.DOTALL
+    ))
 
 
 def test_main_many_tags(capfd):
