@@ -4,7 +4,32 @@
 [![Build Status](https://travis-ci.org/praekeltfoundation/docker-ci-deploy.svg?branch=develop)](https://travis-ci.org/praekeltfoundation/docker-ci-deploy)
 [![codecov](https://codecov.io/gh/praekeltfoundation/docker-ci-deploy/branch/develop/graph/badge.svg)](https://codecov.io/gh/praekeltfoundation/docker-ci-deploy)
 
-Python script to help push Docker images to a registry using CI services
+A command-line tool to help generate tags and push Docker images to a registry. Simplifies deployment of Docker images from CI services such as Travis CI.
+
+In a single command, `docker-ci-deploy` can:
+* Change the tags on images
+* Add version information to image tags
+* Add registry addresses to image tags
+* Login to a registry
+* Push tags to a registry
+
+The best way to try out `docker-ci-deploy` is to give it a spin with the `--dry-run` flag and observe all the :
+```
+> $ docker-ci-deploy --tag-version 2.7.13 --tag-latest \
+      --registry registry:5000 --login 'janedoe:pa55word' --dry-run \
+      praekeltorg/alpine-python \
+      praekeltorg/alpine-python:onbuild
+
+docker tag praekeltorg/alpine-python registry:5000/praekeltorg/alpine-python:2.7.13
+docker tag praekeltorg/alpine-python registry:5000/praekeltorg/alpine-python:latest
+docker tag praekeltorg/alpine-python:onbuild registry:5000/praekeltorg/alpine-python:2.7.13-onbuild
+docker tag praekeltorg/alpine-python:onbuild registry:5000/praekeltorg/alpine-python:onbuild
+docker login --username janedoe --password <password> registry:5000
+docker push registry:5000/praekeltorg/alpine-python:2.7.13
+docker push registry:5000/praekeltorg/alpine-python:latest
+docker push registry:5000/praekeltorg/alpine-python:2.7.13-onbuild
+docker push registry:5000/praekeltorg/alpine-python:onbuild
+```
 
 ## Installation
 ```
@@ -46,6 +71,12 @@ docker-ci-deploy --login 'janedoe:pa$$word' \
   --tag alpine --tag-version 1.2.3 my-image
 ```
 This will result in the tag `my-image:1.2.3-alpine` being created and pushed. If a version is already present in the start of a tag, it will not be added. For example, in the above example if `--tag 1.2.3-alpine` were provided, the image would still be tagged with `1.2.3-alpine`, not `1.2.3-1.2.3-alpine`.
+
+You can also push the tags without the version information so that they are considered the "latest" tag:
+```
+docker-ci-deploy --tag-version 1.2.3 --tag-latest my-image
+```
+This will result in the tags `my-image:1.2.3` and `my-image:latest` being pushed.
 
 #### Custom registry
 ```
