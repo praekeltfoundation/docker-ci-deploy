@@ -299,8 +299,9 @@ def main(raw_args=sys.argv[1:]):
     parser.add_argument('--tag-version',
                         help='Prepend the given version to all tags')
     parser.add_argument('--tag-latest',
-                        help="Tag the image with the 'latest' tag or a tag "
-                             'without a version')
+                        help='Combine with --tag-version to also tag the '
+                             'image without a version so that it is considered'
+                             'the latest version')
     parser.add_argument('-l', '--login', nargs='?',
                         help='Login details in the form <username>:<password> '
                              'to login to the registry')
