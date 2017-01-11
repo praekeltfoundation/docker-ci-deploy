@@ -349,7 +349,7 @@ class TestDockerCiDeployRunner(object):
     def test_version_existing_tag(self, capfd):
         """
         When a version is provided and there is an existing tag in the image
-        tag, then the version should be prepende to the tag.
+        tag, then the version should be prepended to the tag.
         """
         runner = DockerCiDeployRunner(executable='echo')
         runner.run(['test-image:abc'], version='1.2.3')
@@ -357,6 +357,22 @@ class TestDockerCiDeployRunner(object):
         assert_output_lines(capfd, [
             'tag test-image:abc test-image:1.2.3-abc',
             'push test-image:1.2.3-abc',
+        ])
+
+    def test_version_existing_tag_multiple_images(self, capfd):
+        """
+        When a version is provided and there is an existing tag in the image
+        tags and multiple tags are provided, then the version should be
+        prepended to each tag.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        runner.run(['test-image:abc', 'test-image:def'], version='1.2.3')
+
+        assert_output_lines(capfd, [
+            'tag test-image:abc test-image:1.2.3-abc',
+            'tag test-image:def test-image:1.2.3-def',
+            'push test-image:1.2.3-abc',
+            'push test-image:1.2.3-def',
         ])
 
     def test_version_existing_tag_with_version(self, capfd):
