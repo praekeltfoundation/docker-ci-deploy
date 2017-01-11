@@ -139,9 +139,6 @@ def _join_tag_version(tag, version):
     Join a tag (not image tag) and version by prepending the version to the tag
     with a '-' character.
     """
-    if not tag:
-        return version
-
     return '-'.join((version, tag))
 
 
