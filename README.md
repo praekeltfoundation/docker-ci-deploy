@@ -13,10 +13,10 @@ In a single command, `docker-ci-deploy` can:
 * Login to a registry
 * Push tags to a registry
 
-The best way to try out `docker-ci-deploy` is to give it a spin with the `--dry-run` flag and observe all the :
+The best way to try out `docker-ci-deploy` is to give it a spin with the `--dry-run` flag and observe all the `docker` commands that it *would* invoke:
 ```
 > $ docker-ci-deploy --tag-version 2.7.13 --tag-latest \
-      --registry registry:5000 --login 'janedoe:pa55word' --dry-run \
+      --registry registry:5000 --login 'janedoe:pa$$word' --dry-run \
       praekeltorg/alpine-python \
       praekeltorg/alpine-python:onbuild
 
