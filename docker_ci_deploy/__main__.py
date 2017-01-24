@@ -109,7 +109,7 @@ def generate_versioned_tags(tag, version, latest=False):
         tag(s). Include the tag 'latest' if the given tag is empty or None.
     :rtype: list
     """
-    if version is None:
+    if not version:
         return [tag]
 
     stripped_tag = _strip_tag_version(tag, version)
@@ -245,7 +245,7 @@ class DockerCiDeployRunner(object):
         :param registry:
             The address to the Docker registry host.
         """
-        if latest and version is None:
+        if latest and not version:
             raise ValueError('A version must be provided if latest is True')
 
         # Build map of images to tags to push with provided tags
@@ -326,7 +326,7 @@ def main(raw_args=sys.argv[1:]):
     args = parser.parse_args(raw_args)
 
     # --tag-latest requires --tag-version
-    if args.tag_latest and args.tag_version is None:
+    if args.tag_latest and not args.tag_version:
         parser.error('the --tag-latest option requires --tag-version')
 
     runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose,

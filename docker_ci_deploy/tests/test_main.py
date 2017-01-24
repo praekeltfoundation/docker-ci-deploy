@@ -171,6 +171,11 @@ class TestGenerateVersionedTagsFunc(object):
         tags = generate_versioned_tags('foo', None)
         assert_that(tags, Equals(['foo']))
 
+    def test_version_is_empty(self):
+        """ When the version is empty, the tag should be returned. """
+        tags = generate_versioned_tags('foo', '')
+        assert_that(tags, Equals(['foo']))
+
     def test_latest(self):
         """
         When latest is True and a tag and version are provided, the versioned
@@ -467,6 +472,17 @@ class TestDockerCiDeployRunner(object):
             ValueError,
                 r'A version must be provided if latest is True'):
             runner.run(['test-image'], latest=True)
+
+    def test_latest_empty_version(self):
+        """
+        When latest is True but an empty version was provided, an error should
+        be raised.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        with ExpectedException(
+            ValueError,
+                r'A version must be provided if latest is True'):
+            runner.run(['test-image'], latest=True, version='')
 
     def test_latest_no_tag_with_version(self, capfd):
         """
@@ -833,6 +849,22 @@ def test_main_tag_latest_requires_tag_version(capfd):
     """
     with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
         main(['--tag-latest', 'test-image:abc'])
+
+    out, err = capfd.readouterr()
+    assert_that(out, Equals(''))
+    assert_that(err, MatchesRegex(
+        r'.*error: the --tag-latest option requires --tag-version$', re.DOTALL
+    ))
+
+
+def test_main_tag_latest_requires_non_empty_tag_version(capfd):
+    """
+    When the main function is given the `--tag-latest` option and an empty
+    `--tag-version` option, it should exit with a return code of 2 and inform
+    the user of the missing option.
+    """
+    with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+        main(['--tag-latest', '--tag-version', '', 'test-image:abc'])
 
     out, err = capfd.readouterr()
     assert_that(out, Equals(''))
