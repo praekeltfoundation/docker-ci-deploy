@@ -95,7 +95,8 @@ def _join_image_registry(image, registry):
 def generate_versioned_tags(tag, version, latest=False):
     """
     Generate a list of tags based on the given tag and version information.
-    Prepends the given version
+    Prepends the given version to the tag, unless the version is already
+    present.
 
     :param tag:
         The input tag to generate version tags from. The tag 'latest' is
