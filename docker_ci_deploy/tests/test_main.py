@@ -193,9 +193,6 @@ class TestGenerateVersionedTagsFunc(object):
         assert_that(tags, Equals(['1.2.3', 'latest']))
 
 
-""" cmd() """
-
-
 def assert_output_lines(capfd, stdout_lines, stderr_lines=[]):
     out, err = capfd.readouterr()
     if sys.version_info < (3,):
@@ -214,51 +211,51 @@ def assert_output_lines(capfd, stdout_lines, stderr_lines=[]):
     assert_that(err_lines, Equals(stderr_lines))
 
 
-def test_cmd_stdout(capfd):
-    """
-    When a command writes to stdout, that output should be captured and written
-    to Python's stdout.
-    """
-    cmd(['echo', 'Hello, World!'])
+class TestCmdFunc(object):
+    def test_stdout(self, capfd):
+        """
+        When a command writes to stdout, that output should be captured and
+        written to Python's stdout.
+        """
+        cmd(['echo', 'Hello, World!'])
 
-    assert_output_lines(capfd, stdout_lines=['Hello, World!'], stderr_lines=[])
+        assert_output_lines(
+            capfd, stdout_lines=['Hello, World!'], stderr_lines=[])
 
+    def test_stderr(self, capfd):
+        """
+        When a command writes to stderr, that output should be captured and
+        written to Python's stderr.
+        """
+        # Have to do something a bit more complicated to echo to stderr
+        cmd(['awk', 'BEGIN { print "Hello, World!" > "/dev/stderr" }'])
 
-def test_cmd_stderr(capfd):
-    """
-    When a command writes to stderr, that output should be captured and written
-    to Python's stderr.
-    """
-    # Have to do something a bit more complicated to echo to stderr w/o shell
-    cmd(['awk', 'BEGIN { print "Hello, World!" > "/dev/stderr" }'])
+        assert_output_lines(
+            capfd, stdout_lines=[], stderr_lines=['Hello, World!'])
 
-    assert_output_lines(capfd, stdout_lines=[], stderr_lines=['Hello, World!'])
+    def test_stdout_unicode(self, capfd):
+        """
+        When a command writes Unicode to a standard stream, that output should
+        be captured and encoded correctly.
+        """
+        cmd(['echo', 'á, é, í, ó, ú, ü, ñ, ¿, ¡'])
 
+        assert_output_lines(capfd, ['á, é, í, ó, ú, ü, ñ, ¿, ¡'])
 
-def test_cmd_stdout_unicode(capfd):
-    """
-    When a command writes Unicode to a standard stream, that output should be
-    captured and encoded correctly.
-    """
-    cmd(['echo', 'á, é, í, ó, ú, ü, ñ, ¿, ¡'])
+    def test_error(self, capfd):
+        """
+        When a command exits with a non-zero return code, an error should be
+        raised with the correct information about the result of the command.
+        The stdout or stderr output should still be captured.
+        """
+        args = ['awk', 'BEGIN { print "errored"; exit 1 }']
+        with ExpectedException(CalledProcessError, MatchesStructure(
+                cmd=Equals(args),
+                returncode=Equals(1),
+                output=Equals(b'errored\n'))):
+            cmd(args)
 
-    assert_output_lines(capfd, ['á, é, í, ó, ú, ü, ñ, ¿, ¡'])
-
-
-def test_cmd_error(capfd):
-    """
-    When a command exits with a non-zero return code, an error should be raised
-    with the correct information about the result of the command. The stdout or
-    stderr output should still be captured.
-    """
-    args = ['awk', 'BEGIN { print "errored"; exit 1 }']
-    with ExpectedException(CalledProcessError, MatchesStructure(
-            cmd=Equals(args),
-            returncode=Equals(1),
-            output=Equals(b'errored\n'))):
-        cmd(args)
-
-    assert_output_lines(capfd, ['errored'], [])
+        assert_output_lines(capfd, ['errored'], [])
 
 
 class TestDockerCiDeployRunner(object):
