@@ -1,8 +1,24 @@
+import codecs
+import os
+
 from setuptools import setup, find_packages
 
+HERE = os.path.abspath(os.path.dirname(__file__))
 
-with open('README.md') as f:
-    README = f.read()
+
+def read(*parts):  # Stolen from txacme
+    with codecs.open(os.path.join(HERE, *parts), 'rb', 'utf-8') as f:
+        return f.read()
+
+
+def readme():
+    # Prefer the ReStructuredText README, but fallback to Markdown if it hasn't
+    # been generated
+    if os.path.exists('README.rst'):
+        return read('README.rst')
+    else:
+        return read('README.md')
+
 
 setup(
     name='docker-ci-deploy',
@@ -11,7 +27,7 @@ setup(
     url='https://github.com/praekeltfoundation/docker-ci-deploy',
     description='Python script to help push Docker images to a registry using '
                 'CI services',
-    long_description=README,
+    long_description=readme(),
     author='Jamie Hewland',
     author_email='jamie@praekelt.org',
     maintainer='Praekelt.org SRE team',

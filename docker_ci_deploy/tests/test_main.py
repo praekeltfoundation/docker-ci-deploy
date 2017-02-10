@@ -236,9 +236,6 @@ class TestGenerateVersionedTagsFunc(object):
         assert_that(tags, Equals(['1.2.3', '1.2', '1', 'latest']))
 
 
-""" cmd() """
-
-
 def assert_output_lines(capfd, stdout_lines, stderr_lines=[]):
     out, err = capfd.readouterr()
     if sys.version_info < (3,):
@@ -257,51 +254,51 @@ def assert_output_lines(capfd, stdout_lines, stderr_lines=[]):
     assert_that(err_lines, Equals(stderr_lines))
 
 
-def test_cmd_stdout(capfd):
-    """
-    When a command writes to stdout, that output should be captured and written
-    to Python's stdout.
-    """
-    cmd(['echo', 'Hello, World!'])
+class TestCmdFunc(object):
+    def test_stdout(self, capfd):
+        """
+        When a command writes to stdout, that output should be captured and
+        written to Python's stdout.
+        """
+        cmd(['echo', 'Hello, World!'])
 
-    assert_output_lines(capfd, stdout_lines=['Hello, World!'], stderr_lines=[])
+        assert_output_lines(
+            capfd, stdout_lines=['Hello, World!'], stderr_lines=[])
 
+    def test_stderr(self, capfd):
+        """
+        When a command writes to stderr, that output should be captured and
+        written to Python's stderr.
+        """
+        # Have to do something a bit more complicated to echo to stderr
+        cmd(['awk', 'BEGIN { print "Hello, World!" > "/dev/stderr" }'])
 
-def test_cmd_stderr(capfd):
-    """
-    When a command writes to stderr, that output should be captured and written
-    to Python's stderr.
-    """
-    # Have to do something a bit more complicated to echo to stderr w/o shell
-    cmd(['awk', 'BEGIN { print "Hello, World!" > "/dev/stderr" }'])
+        assert_output_lines(
+            capfd, stdout_lines=[], stderr_lines=['Hello, World!'])
 
-    assert_output_lines(capfd, stdout_lines=[], stderr_lines=['Hello, World!'])
+    def test_stdout_unicode(self, capfd):
+        """
+        When a command writes Unicode to a standard stream, that output should
+        be captured and encoded correctly.
+        """
+        cmd(['echo', 'á, é, í, ó, ú, ü, ñ, ¿, ¡'])
 
+        assert_output_lines(capfd, ['á, é, í, ó, ú, ü, ñ, ¿, ¡'])
 
-def test_cmd_stdout_unicode(capfd):
-    """
-    When a command writes Unicode to a standard stream, that output should be
-    captured and encoded correctly.
-    """
-    cmd(['echo', 'á, é, í, ó, ú, ü, ñ, ¿, ¡'])
+    def test_error(self, capfd):
+        """
+        When a command exits with a non-zero return code, an error should be
+        raised with the correct information about the result of the command.
+        The stdout or stderr output should still be captured.
+        """
+        args = ['awk', 'BEGIN { print "errored"; exit 1 }']
+        with ExpectedException(CalledProcessError, MatchesStructure(
+                cmd=Equals(args),
+                returncode=Equals(1),
+                output=Equals(b'errored\n'))):
+            cmd(args)
 
-    assert_output_lines(capfd, ['á, é, í, ó, ú, ü, ñ, ¿, ¡'])
-
-
-def test_cmd_error(capfd):
-    """
-    When a command exits with a non-zero return code, an error should be raised
-    with the correct information about the result of the command. The stdout or
-    stderr output should still be captured.
-    """
-    args = ['awk', 'BEGIN { print "errored"; exit 1 }']
-    with ExpectedException(CalledProcessError, MatchesStructure(
-            cmd=Equals(args),
-            returncode=Equals(1),
-            output=Equals(b'errored\n'))):
-        cmd(args)
-
-    assert_output_lines(capfd, ['errored'], [])
+        assert_output_lines(capfd, ['errored'], [])
 
 
 class TestDockerCiDeployRunner(object):
@@ -861,182 +858,179 @@ class TestDockerCiDeployRunner(object):
             runner.run(['test-image'], login='janedoe:pa55word')
 
 
-""" main() """
+class TestMainFunc(object):
+    def test_args(self, capfd):
+        """
+        When the main function is given a set of common arguments, the script
+        should be run as expected.
+        """
+        main([
+            '--login', 'janedoe:pa55word',
+            '--registry', 'registry.example.com:5000',
+            '--executable', 'echo',
+            'test-image:abc'
+        ])
 
+        assert_output_lines(capfd, [
+            'tag test-image:abc registry.example.com:5000/test-image:abc',
+            'login --username janedoe --password pa55word '
+            'registry.example.com:5000',
+            'push registry.example.com:5000/test-image:abc'
+        ])
 
-def test_main_args(capfd):
-    """
-    When the main function is given a set of common arguments, the script
-    should be run as expected.
-    """
-    main([
-        '--login', 'janedoe:pa55word',
-        '--registry', 'registry.example.com:5000',
-        '--executable', 'echo',
-        'test-image:abc'
-    ])
+    def test_image_required(self, capfd):
+        """
+        When the main function is given no image argument, it should exit with
+        a return code of 2 and inform the user of the missing argument.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--tag', 'abc'])
 
-    assert_output_lines(capfd, [
-        'tag test-image:abc registry.example.com:5000/test-image:abc',
-        'login --username janedoe --password pa55word '
-        'registry.example.com:5000',
-        'push registry.example.com:5000/test-image:abc'
-    ])
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
 
+        # More useful error message added to argparse in Python 3
+        if sys.version_info >= (3,):
+            # Use re.DOTALL so that '.*' also matches newlines
+            assert_that(err, MatchesRegex(
+                r'.*error: the following arguments are required: image$',
+                re.DOTALL
+            ))
+        else:
+            assert_that(
+                err, MatchesRegex(r'.*error: too few arguments$', re.DOTALL))
 
-def test_main_image_required(capfd):
-    """
-    When the main function is given no image argument, it should exit with a
-    return code of 2 and inform the user of the missing argument.
-    """
-    with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-        main(['--tag', 'abc'])
+    def test_tag_latest_requires_tag_version(self, capfd):
+        """
+        When the main function is given the `--tag-latest` option but no
+        `--tag-version` option, it should exit with a return code of 2 and
+        inform the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--tag-latest', 'test-image:abc'])
 
-    out, err = capfd.readouterr()
-    assert_that(out, Equals(''))
-
-    # More useful error message added to argparse in Python 3
-    if sys.version_info >= (3,):
-        # Use re.DOTALL so that '.*' also matches newlines
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
         assert_that(err, MatchesRegex(
-            r'.*error: the following arguments are required: image$', re.DOTALL
+            r'.*error: the --tag-latest option requires --tag-version$',
+            re.DOTALL
         ))
-    else:
-        assert_that(
-            err, MatchesRegex(r'.*error: too few arguments$', re.DOTALL))
 
+    def test_tag_latest_requires_non_empty_tag_version(self, capfd):
+        """
+        When the main function is given the `--tag-latest` option and an empty
+        `--tag-version` option, it should exit with a return code of 2 and
+        inform the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--tag-latest', '--tag-version', '', 'test-image:abc'])
 
-def test_main_tag_latest_requires_tag_version(capfd):
-    """
-    When the main function is given the `--tag-latest` option but no
-    `--tag-version` option, it should exit with a return code of 2 and inform
-    the user of the missing option.
-    """
-    with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-        main(['--tag-latest', 'test-image:abc'])
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --tag-latest option requires --tag-version$',
+            re.DOTALL
+        ))
 
-    out, err = capfd.readouterr()
-    assert_that(out, Equals(''))
-    assert_that(err, MatchesRegex(
-        r'.*error: the --tag-latest option requires --tag-version$', re.DOTALL
-    ))
+    def test_tag_semver_requires_tag_version(self, capfd):
+        """
+        When the main function is given the `--tag-semver` option but no
+        `--tag-version` option, it should exit with a return code of 2 and
+        inform the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--tag-semver', 'test-image:abc'])
 
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --tag-semver option requires --tag-version$',
+            re.DOTALL
+        ))
 
-def test_main_tag_latest_requires_non_empty_tag_version(capfd):
-    """
-    When the main function is given the `--tag-latest` option and an empty
-    `--tag-version` option, it should exit with a return code of 2 and inform
-    the user of the missing option.
-    """
-    with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-        main(['--tag-latest', '--tag-version', '', 'test-image:abc'])
+    def test_tag_semver_requires_non_empty_tag_version(self, capfd):
+        """
+        When the main function is given the `--tag-semver` option and an empty
+        `--tag-version` option, it should exit with a return code of 2 and
+        inform the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--tag-semver', '--tag-version', '', 'test-image:abc'])
 
-    out, err = capfd.readouterr()
-    assert_that(out, Equals(''))
-    assert_that(err, MatchesRegex(
-        r'.*error: the --tag-latest option requires --tag-version$', re.DOTALL
-    ))
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --tag-semver option requires --tag-version$',
+            re.DOTALL
+        ))
 
-
-def test_main_tag_semver_requires_tag_version(capfd):
-    """
-    When the main function is given the `--tag-semver` option but no
-    `--tag-version` option, it should exit with a return code of 2 and inform
-    the user of the missing option.
-    """
-    with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-        main(['--tag-semver', 'test-image:abc'])
-
-    out, err = capfd.readouterr()
-    assert_that(out, Equals(''))
-    assert_that(err, MatchesRegex(
-        r'.*error: the --tag-semver option requires --tag-version$', re.DOTALL
-    ))
-
-
-def test_main_tag_semver_requires_non_empty_tag_version(capfd):
-    """
-    When the main function is given the `--tag-semver` option and an empty
-    `--tag-version` option, it should exit with a return code of 2 and inform
-    the user of the missing option.
-    """
-    with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-        main(['--tag-semver', '--tag-version', '', 'test-image:abc'])
-
-    out, err = capfd.readouterr()
-    assert_that(out, Equals(''))
-    assert_that(err, MatchesRegex(
-        r'.*error: the --tag-semver option requires --tag-version$', re.DOTALL
-    ))
-
-
-def test_main_many_tags(capfd):
-    """
-    When the main function is given multiple tag arguments in different ways,
-    the tags should be correctly passed through to the runner.
-    """
-    main([
-        '--tag', 'abc', 'def',
-        '-t', 'ghi',
-        '--executable', 'echo',
-        'test-image:xyz'
-    ])
-
-    assert_output_lines(capfd, [
-        'tag test-image:xyz test-image:abc',
-        'tag test-image:xyz test-image:def',
-        'tag test-image:xyz test-image:ghi',
-        'push test-image:abc',
-        'push test-image:def',
-        'push test-image:ghi'
-    ])
-
-
-def test_main_hides_stacktrace(capfd):
-    """
-    When an error is thrown - for example if the Docker executable cannot be
-    found - then the stacktrace is suppressed and information about the
-    runtime arguments is not exposed.
-    """
-    with ExpectedException(SystemExit, MatchesStructure(code=Equals(1))):
+    def test_many_tags(self, capfd):
+        """
+        When the main function is given multiple tag arguments in different
+        ways, the tags should be correctly passed through to the runner.
+        """
         main([
-            '--login', 'janedoe:pa55word',
-            '--executable', 'does-not-exist1234',
-            'test-image'
+            '--tag', 'abc', 'def',
+            '-t', 'ghi',
+            '--executable', 'echo',
+            'test-image:xyz'
         ])
 
-    # FIXME: actually assert that traceback is not printed
-
-    if sys.version_info >= (3,):
-        error_msg = "[Errno 2] No such file or directory: 'does-not-exist1234'"
-    else:
-        error_msg = '[Errno 2] No such file or directory'
-    assert_output_lines(capfd, [
-        'Exception raised during execution: %s' % (error_msg,),
-        'Stacktrace suppressed. Use debug mode to see full stacktrace.',
-    ])
-
-
-def test_main_debug_shows_stacktrace(capfd):
-    """
-    When an error is thrown - for example if the Docker executable cannot be
-    found - then the stacktrace is suppressed and information about the
-    runtime arguments is not exposed.
-    """
-    if sys.version_info >= (3,):
-        err_type = FileNotFoundError  # noqa: F821
-    else:
-        err_type = OSError
-    with ExpectedException(err_type, r'\[Errno 2\] No such file or directory'):
-        main([
-            '--debug',
-            '--login', 'janedoe:pa55word',
-            '--executable', 'does-not-exist1234',
-            'test-image'
+        assert_output_lines(capfd, [
+            'tag test-image:xyz test-image:abc',
+            'tag test-image:xyz test-image:def',
+            'tag test-image:xyz test-image:ghi',
+            'push test-image:abc',
+            'push test-image:def',
+            'push test-image:ghi'
         ])
 
-    # FIXME: actually assert that traceback is printed
+    def test_hides_stacktrace(self, capfd):
+        """
+        When an error is thrown - for example if the Docker executable cannot
+        be found - then the stacktrace is suppressed and information about the
+        runtime arguments is not exposed.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(1))):
+            main([
+                '--login', 'janedoe:pa55word',
+                '--executable', 'does-not-exist1234',
+                'test-image'
+            ])
 
-    # pytest suppresses the stack trace itself so it doesn't show up in
-    # stdout/stderr
-    assert_output_lines(capfd, [], [])
+        # FIXME: actually assert that traceback is not printed
+
+        if sys.version_info >= (3,):
+            error_msg = (
+                "[Errno 2] No such file or directory: 'does-not-exist1234'")
+        else:
+            error_msg = '[Errno 2] No such file or directory'
+        assert_output_lines(capfd, [
+            'Exception raised during execution: %s' % (error_msg,),
+            'Stacktrace suppressed. Use debug mode to see full stacktrace.',
+        ])
+
+    def test_debug_shows_stacktrace(self, capfd):
+        """
+        When an error is thrown - for example if the Docker executable cannot
+        be found - then the stacktrace is suppressed and information about the
+        runtime arguments is not exposed.
+        """
+        if sys.version_info >= (3,):
+            err_type = FileNotFoundError  # noqa: F821
+        else:
+            err_type = OSError
+        with ExpectedException(
+                err_type, r'\[Errno 2\] No such file or directory'):
+            main([
+                '--debug',
+                '--login', 'janedoe:pa55word',
+                '--executable', 'does-not-exist1234',
+                'test-image'
+            ])
+
+        # FIXME: actually assert that traceback is printed
+
+        # pytest suppresses the stack trace itself so it doesn't show up in
+        # stdout/stderr
+        assert_output_lines(capfd, [], [])
