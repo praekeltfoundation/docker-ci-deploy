@@ -298,9 +298,9 @@ def main(raw_args=sys.argv[1:]):
     parser.add_argument('-t', '--tag', nargs='*',
                         action='append',
                         help='Tags to tag the image with before pushing')
-    parser.add_argument('--tag-version',
+    parser.add_argument('-V', '--tag-version',
                         help='Prepend the given version to all tags')
-    parser.add_argument('--tag-latest', action='store_true',
+    parser.add_argument('-L', '--tag-latest', action='store_true',
                         help='Combine with --tag-version to also tag the '
                              'image without a version so that it is considered'
                              'the latest version')

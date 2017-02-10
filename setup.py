@@ -45,7 +45,8 @@ setup(
     packages=find_packages(),
     entry_points={
         'console_scripts': [
-            'docker-ci-deploy = docker_ci_deploy.__main__:main'
+            'docker-ci-deploy = docker_ci_deploy.__main__:main',
+            'dcd = docker_ci_deploy.__main__:main',
         ]
     }
 )
