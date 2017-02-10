@@ -6,6 +6,10 @@ python:
   - '3.6'
 cache: pip
 
+addons:
+  apt_packages:
+    - pandoc
+
 before_install:
   - pip install --upgrade pip
 install:
@@ -20,11 +24,13 @@ script:
 after_success:
   - codecov
 
+before_deploy:
+  - pandoc --from=markdown --to=rst --output=README.rst README.md
 deploy:
   provider: pypi
-  user: Praekelt
+  user: praekelt.org
   password:
-    secure: Yc1UKoESBlo8CO3vyzOBJBv1P6IAe6gpX6jR0pm8Xf/ZKSbKojPUljXNy6doUvk2XrC0MlTwa4ucoO8QRJ7W0vR4kjBbfF2N//s4vqqpKWCYkPbAzHFvs28haptsZfBpMcxh2sH0/sgFglihxYClTdNtNStEYaobx5ykZFNsHeipomd62qWC5Alc41BAk4VG/MX20hLnO8mzyI5P7ziyH4lpi7jCFMT5r9bL8ooL2WaifFqP8x/4VRYM+WPxx/+3PVf/JcQTBEH2UXiUTzgh4MYWhrLTF5BY56wzDSl9ovG3cPv/4iZWWnpF4J0lymaV1iqKb9hNQGorFNbZuJIwL0HX+Bp/2ZZpEeg4BmvkBXSgIydXxcbGulYf8P7/aciN8MR5onPZwPEXyBQe9SnuWnGpHxmXqM2lXvbhpRN/FJDT8uCB/y7RILmXcKBikhSiZ/WvnGoExYdDetD5DLtXVX1C7yKDajazNkTeSkZURn9aIDWfdBkZhwkpVNNYbmPSG0vlXiYLavmDzygSvr9s0OLwrVjacLKhQOT/BBHbohq2ihKkg2Pr59RsescNDSAReNMeqhJlyo1fXR9neJcaJPZUGppgjz76ZXHj4IM7kZZh2G3+zjjUgUoji+h61jAfWG1KAtv1rn/lOQa5Zn7u/Hqdo6W1ZoQ7E6h03Nhoya4=
+    secure: R/TvZbdVYF0dc2iL/Z5+oexFEBLDR2S2Yu/rGy/oj2x+7UG7a58Dd0IU7MyQM7L8DPjTlaPWWbjP6GeEtSNkR7mqgivnsV2oMpHZwA47uA3eopZdh7YGZ1opE5YBOpYjnlRD6rCsQuAXZSExgF85opoGjYEZDMrtP5gshwNcj28vxKNJz3VCoBwfeOxxEvUd/9uP7Ktci4v5EKTI+baNWHpe+e69haqyWX0uZhXeam42kXPfJLq3UjPRbMKXbqhvindPODtsprXpnSzfNb2frijUEZlZPxVJq15o3T+GJE8gx0gxmZTSIsNimdL4pCEydRDVtiCItLLJEgLuMD+RUmEuH5iVUmvch5t2A2GRzfD+bzNn8BCZAEkQKUWEwy7slL1v2NML0yxBQNF3Y2QrWbS0eBVNR2N/lTGyxzeHo28/GGrKIVENhH3S6u+gNK6JLYT4g0ZhBJ5ua+JPRMVfqh9vo9rQwXAU+RXV8sZgxX1QHi/6ezyF1aq37e+lhJkQv+KdA2LFl+sSSY/WHD0zH11b7+oAy9Wg5ds1KlE1TXxuEhOOHHuBHLhS3FN32FgE3x+iL4vryKwzwCRiTRDjQiLeIos18oO3y55/WLcER3kIewkj1BtdG+nGkeFtJV5fgNnA9XQM/SuixrHIselQLsfho5ife3iNITlEwvmNFMg=
   on:
     tags: true
   distributions: sdist bdist_wheel
