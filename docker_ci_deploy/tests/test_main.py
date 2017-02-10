@@ -527,6 +527,28 @@ class TestDockerCiDeployRunner(object):
                 r'A version must be provided if latest is True'):
             runner.run(['test-image'], latest=True, version='')
 
+    def test_semver_no_version(self):
+        """
+        When semver is True but no version was provided, an error should be
+        raised.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        with ExpectedException(
+            ValueError,
+                r'A version must be provided if semver is True'):
+            runner.run(['test-image'], semver=True)
+
+    def test_semver_empty_version(self):
+        """
+        When semver is True but an empty version was provided, an error should
+        be raised.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        with ExpectedException(
+            ValueError,
+                r'A version must be provided if semver is True'):
+            runner.run(['test-image'], semver=True, version='')
+
     def test_latest_no_tag_with_version(self, capfd):
         """
         When latest is True and no tag is present but a version is, the image

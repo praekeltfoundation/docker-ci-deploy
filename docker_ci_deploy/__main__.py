@@ -274,7 +274,7 @@ class DockerCiDeployRunner(object):
         """
         if latest and not version:
             raise ValueError('A version must be provided if latest is True')
-        if semver and version is None:
+        if semver and not version:
             raise ValueError('A version must be provided if semver is True')
 
         # Build map of images to tags to push with provided tags
