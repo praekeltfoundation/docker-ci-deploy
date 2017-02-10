@@ -192,6 +192,49 @@ class TestGenerateVersionedTagsFunc(object):
         tags = generate_versioned_tags('latest', '1.2.3', latest=True)
         assert_that(tags, Equals(['1.2.3', 'latest']))
 
+    def test_semver(self):
+        """
+        When semver is True and a tag and version are provided, the tag should
+        be prefixed with each part of the version.
+        """
+        tags = generate_versioned_tags('foo', '1.2.3', semver=True)
+        assert_that(tags, Equals(['1.2.3-foo', '1.2-foo', '1-foo']))
+
+    def test_semver_no_tag(self):
+        """
+        When semver is True and only a version is provided, tags should be
+        generated for each part of the version.
+        """
+        tags = generate_versioned_tags(None, '1.2.3', semver=True)
+        assert_that(tags, Equals(['1.2.3', '1.2', '1']))
+
+    def test_semver_tag_contains_semver(self):
+        """
+        When semver is True and a tag is provided that starts with one of the
+        parts of the version, that version part should be removed before the
+        tag is prefixed with all the version parts.
+        """
+        tags = generate_versioned_tags('1.2-foo', '1.2.3', semver=True)
+        assert_that(tags, Equals(['1.2.3-foo', '1.2-foo', '1-foo']))
+
+    def test_semver_with_latest(self):
+        """
+        When semver is True, a tag and a version are provided, and latest is
+        True, each version part should be prefixed to the tag and the plain tag
+        should also be returned.
+        """
+        tags = generate_versioned_tags(
+            'foo', '1.2.3', latest=True, semver=True)
+        assert_that(tags, Equals(['1.2.3-foo', '1.2-foo', '1-foo', 'foo']))
+
+    def test_semver_no_tag_with_latest(self):
+        """
+        When semver is True, a version is provided, and latest is True, each
+        version part as well as the 'latest' tag should be returned.
+        """
+        tags = generate_versioned_tags(None, '1.2.3', latest=True, semver=True)
+        assert_that(tags, Equals(['1.2.3', '1.2', '1', 'latest']))
+
 
 """ cmd() """
 
@@ -870,6 +913,38 @@ def test_main_tag_latest_requires_non_empty_tag_version(capfd):
     assert_that(out, Equals(''))
     assert_that(err, MatchesRegex(
         r'.*error: the --tag-latest option requires --tag-version$', re.DOTALL
+    ))
+
+
+def test_main_tag_semver_requires_tag_version(capfd):
+    """
+    When the main function is given the `--tag-semver` option but no
+    `--tag-version` option, it should exit with a return code of 2 and inform
+    the user of the missing option.
+    """
+    with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+        main(['--tag-semver', 'test-image:abc'])
+
+    out, err = capfd.readouterr()
+    assert_that(out, Equals(''))
+    assert_that(err, MatchesRegex(
+        r'.*error: the --tag-semver option requires --tag-version$', re.DOTALL
+    ))
+
+
+def test_main_tag_semver_requires_non_empty_tag_version(capfd):
+    """
+    When the main function is given the `--tag-semver` option and an empty
+    `--tag-version` option, it should exit with a return code of 2 and inform
+    the user of the missing option.
+    """
+    with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+        main(['--tag-semver', '--tag-version', '', 'test-image:abc'])
+
+    out, err = capfd.readouterr()
+    assert_that(out, Equals(''))
+    assert_that(err, MatchesRegex(
+        r'.*error: the --tag-semver option requires --tag-version$', re.DOTALL
     ))
 
 
