@@ -6,6 +6,10 @@ python:
   - '3.6'
 cache: pip
 
+addons:
+  apt_packages:
+    - pandoc
+
 before_install:
   - pip install --upgrade pip
 install:
@@ -20,6 +24,8 @@ script:
 after_success:
   - codecov
 
+before_deploy:
+  - pandoc --from=markdown --to=rst --output=README.rst README.md
 deploy:
   provider: pypi
   user: Praekelt
