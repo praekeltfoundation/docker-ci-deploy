@@ -332,7 +332,7 @@ def main(raw_args=sys.argv[1:]):
                         help='Combine with --tag-version to also tag the '
                              'image without a version so that it is considered'
                              'the latest version')
-    parser.add_argument('--tag-semver', action='store_true',
+    parser.add_argument('-S', '--tag-semver', action='store_true',
                         help='Combine with --tag-version to also tag the '
                              'image with each major and minor version')
     parser.add_argument('-l', '--login', nargs='?',
