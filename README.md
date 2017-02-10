@@ -31,6 +31,19 @@ docker push registry:5000/praekeltorg/alpine-python:2.7.13-onbuild
 docker push registry:5000/praekeltorg/alpine-python:onbuild
 ```
 
+If you want to make your commands even shorter, the `docker-ci-deploy` command is also available as just `dcd`, and most commands have a short form:
+```
+> $ dcd -V 3.6.0 -L -r registry:5000 -l 'janedoe:pa$$word' --dry-run alpine-python
+
+docker tag alpine-python registry:5000/alpine-python:3.6.0
+docker tag alpine-python registry:5000/alpine-python:latest
+docker login --username janedoe --password <password> registry:5000
+docker push registry:5000/alpine-python:3.6.0
+docker push registry:5000/alpine-python:latest
+```
+
+Use the `-h`/`--help` option to see all available options.
+
 ## Installation
 ```
 pip install docker-ci-deploy
