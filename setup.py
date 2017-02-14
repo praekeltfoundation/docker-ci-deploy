@@ -22,7 +22,7 @@ def readme():
 
 setup(
     name='docker-ci-deploy',
-    version='0.2.0.dev0',
+    version='0.2.0',
     license='MIT',
     url='https://github.com/praekeltfoundation/docker-ci-deploy',
     description='Python script to help push Docker images to a registry using '
