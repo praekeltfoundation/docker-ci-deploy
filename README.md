@@ -58,7 +58,7 @@ Use the `-h`/`--help` option to see all available options.
 
 ## Installation
 ```
-pip install docker-ci-deploy
+pip install docker-ci-deploy==0.2.0
 ```
 
 The script is self-contained and has no dependencies. It can be run by simply executing the [main file](docker-ci-deploy/__main__.py).
