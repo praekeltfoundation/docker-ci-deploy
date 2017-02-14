@@ -15,30 +15,42 @@ In a single command, `docker-ci-deploy` can:
 
 The best way to try out `docker-ci-deploy` is to give it a spin with the `--dry-run` flag and observe all the `docker` commands that it *would* invoke:
 ```
-> $ docker-ci-deploy --tag-version 2.7.13 --tag-latest \
+> $ docker-ci-deploy --tag-version 2.7.13 --tag-semver --tag-latest \
       --registry registry:5000 --login 'janedoe:pa$$word' --dry-run \
       praekeltorg/alpine-python \
       praekeltorg/alpine-python:onbuild
 
 docker tag praekeltorg/alpine-python registry:5000/praekeltorg/alpine-python:2.7.13
+docker tag praekeltorg/alpine-python registry:5000/praekeltorg/alpine-python:2.7
+docker tag praekeltorg/alpine-python registry:5000/praekeltorg/alpine-python:2
 docker tag praekeltorg/alpine-python registry:5000/praekeltorg/alpine-python:latest
 docker tag praekeltorg/alpine-python:onbuild registry:5000/praekeltorg/alpine-python:2.7.13-onbuild
+docker tag praekeltorg/alpine-python:onbuild registry:5000/praekeltorg/alpine-python:2.7-onbuild
+docker tag praekeltorg/alpine-python:onbuild registry:5000/praekeltorg/alpine-python:2-onbuild
 docker tag praekeltorg/alpine-python:onbuild registry:5000/praekeltorg/alpine-python:onbuild
 docker login --username janedoe --password <password> registry:5000
 docker push registry:5000/praekeltorg/alpine-python:2.7.13
+docker push registry:5000/praekeltorg/alpine-python:2.7
+docker push registry:5000/praekeltorg/alpine-python:2
 docker push registry:5000/praekeltorg/alpine-python:latest
 docker push registry:5000/praekeltorg/alpine-python:2.7.13-onbuild
+docker push registry:5000/praekeltorg/alpine-python:2.7-onbuild
+docker push registry:5000/praekeltorg/alpine-python:2-onbuild
 docker push registry:5000/praekeltorg/alpine-python:onbuild
 ```
 
 If you want to make your commands even shorter, the `docker-ci-deploy` command is also available as just `dcd`, and most options have a short form:
 ```
-> $ dcd -V 3.6.0 -L -r registry:5000 -l 'janedoe:pa$$word' --dry-run alpine-python
+> $ dcd -V 3.6.0 -S -L -r registry:5000 -l 'janedoe:pa$$word' --dry-run alpine-python
 
 docker tag alpine-python registry:5000/alpine-python:3.6.0
+docker tag alpine-python registry:5000/alpine-python:3.6
+docker tag alpine-python registry:5000/alpine-python:3
 docker tag alpine-python registry:5000/alpine-python:latest
 docker login --username janedoe --password <password> registry:5000
 docker push registry:5000/alpine-python:3.6.0
+docker push registry:5000/alpine-python:3.6
+docker push registry:5000/alpine-python:3
 docker push registry:5000/alpine-python:latest
 ```
 
@@ -90,6 +102,18 @@ You can also push the tags without the version information so that they are cons
 docker-ci-deploy --tag-version 1.2.3 --tag-latest my-image
 ```
 This will result in the tags `my-image:1.2.3` and `my-image:latest` being pushed.
+
+#### Semantic version tags
+```
+docker-ci-deploy --tag alpine --tag-version 1.2.3 --tag-semver my-image
+```
+This will result in the tags `my-image:1.2.3-alpine`, `my-image:1.2-alpine`, and `my-image:1-alpine` being created and pushed. If part of the version is already present in the start of a tag, it will not be added. For example, in the above example if `--tag 1.2-alpine` were provided, the image would still be tagged with `1.2.3-alpine`, not `1.2.3-1.2-alpine`.
+
+This works by stripping pieces from the front of the version string using the regex `[.-]?\w+$`. This means that version strings with some text in them are also supported. For example, a tag such as `8.7.1-jessie` will produce the tags/tag prefixes `8.7.1-jessie`, `8.7.1`, `8.7`, and `8`.
+
+Note that this will **not** tag a version `0`.
+
+This can be used in combination with `--tag-latest`.
 
 #### Custom registry
 ```

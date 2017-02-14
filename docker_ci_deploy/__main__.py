@@ -92,7 +92,7 @@ def _join_image_registry(image, registry):
     return '/'.join((registry, image))
 
 
-def generate_versioned_tags(tag, version, latest=False):
+def generate_versioned_tags(tag, version, latest=False, semver=False):
     """
     Generate a list of tags based on the given tag and version information.
     Prepends the given version to the tag, unless the version is already
@@ -113,25 +113,37 @@ def generate_versioned_tags(tag, version, latest=False):
     if not version:
         return [tag]
 
-    stripped_tag = _strip_tag_version(tag, version)
-    if not stripped_tag or stripped_tag == 'latest':
-        return [version, 'latest'] if latest else [version]
+    versions = _generate_semver_versions(version) if semver else [version]
+    stripped_tag = _strip_tag_version(tag, versions)
 
-    versioned_tag = _join_tag_version(stripped_tag, version)
-    return [versioned_tag, stripped_tag] if latest else [versioned_tag]
+    if stripped_tag and stripped_tag != 'latest':
+        versioned_tags = [_join_tag_version(stripped_tag, v) for v in versions]
+    else:
+        versioned_tags = versions
+
+    if latest:
+        latest_tag = stripped_tag if stripped_tag else 'latest'
+        versioned_tags.append(latest_tag)
+
+    return versioned_tags
 
 
-def _strip_tag_version(tag, version):
+def _strip_tag_version(tag, semver_versions):
     """
     Strip the version from the front of the given tag (not image tag) if the
     version is present.
+
+    :param semver_versions:
+        A list of versions from longest to shortest.
     """
     if tag is None:
         return None
-    if tag == version:
-        return ''
-    if tag.startswith(version + '-'):
-        return tag[len(version) + 1:]
+    for version in semver_versions:
+        if tag == version:
+            return ''
+        if tag.startswith(version + '-'):
+            return tag[len(version) + 1:]
+
     return tag
 
 
@@ -141,6 +153,20 @@ def _join_tag_version(tag, version):
     with a '-' character.
     """
     return '-'.join((version, tag))
+
+
+def _generate_semver_versions(version):
+    """
+    Generate strings of the given version to different degrees of precision.
+    Won't generate a version 0.
+    e.g. '5.4.1' => ['5.4.1', '5.4', '5']
+         '5.5.0-alpha' => ['5.5.0-alpha', '5.5.0', '5.5', '5']
+    """
+    sub_versions = []
+    while version and version != '0':
+        sub_versions.append(version)
+        version = re.sub(r'[.-]?\w+$', r'', version)
+    return sub_versions
 
 
 def cmd(args, sanitised_args=None):
@@ -225,8 +251,8 @@ class DockerCiDeployRunner(object):
         """ Run ``docker push`` with the given tag. """
         self._docker_cmd(['push', tag])
 
-    def run(self, images, tags=None, version=None, latest=False, login=None,
-            registry=None):
+    def run(self, images, tags=None, version=None, latest=False, semver=False,
+            login=None, registry=None):
         """
         Run the script - tag, login and push as necessary.
 
@@ -248,6 +274,8 @@ class DockerCiDeployRunner(object):
         """
         if latest and not version:
             raise ValueError('A version must be provided if latest is True')
+        if semver and not version:
+            raise ValueError('A version must be provided if semver is True')
 
         # Build map of images to tags to push with provided tags
         tag_map = []
@@ -262,7 +290,7 @@ class DockerCiDeployRunner(object):
             version_tags = []
             for new_tag in new_tags:
                 version_tags.extend(
-                    generate_versioned_tags(new_tag, version, latest))
+                    generate_versioned_tags(new_tag, version, latest, semver))
 
             # Finally, rejoin the image name and tag parts
             new_image_tags = [join_image_tag(new_image, version_tag)
@@ -304,6 +332,9 @@ def main(raw_args=sys.argv[1:]):
                         help='Combine with --tag-version to also tag the '
                              'image without a version so that it is considered'
                              'the latest version')
+    parser.add_argument('-S', '--tag-semver', action='store_true',
+                        help='Combine with --tag-version to also tag the '
+                             'image with each major and minor version')
     parser.add_argument('-l', '--login', nargs='?',
                         help='Login details in the form <username>:<password> '
                              'to login to the registry')
@@ -329,6 +360,8 @@ def main(raw_args=sys.argv[1:]):
     # --tag-latest requires --tag-version
     if args.tag_latest and not args.tag_version:
         parser.error('the --tag-latest option requires --tag-version')
+    if args.tag_semver and not args.tag_version:
+        parser.error('the --tag-semver option requires --tag-version')
 
     runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose,
                                   executable=args.executable)
@@ -337,8 +370,8 @@ def main(raw_args=sys.argv[1:]):
 
     try:
         runner.run(args.image, tags=tags, version=args.tag_version,
-                   latest=args.tag_latest, login=args.login,
-                   registry=args.registry)
+                   latest=args.tag_latest, semver=args.tag_semver,
+                   login=args.login, registry=args.registry)
     except BaseException as e:
         if args.debug:
             raise
