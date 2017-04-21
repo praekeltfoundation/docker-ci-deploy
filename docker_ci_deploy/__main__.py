@@ -66,18 +66,20 @@ def join_image_tag(image, tag):
     return ':'.join((image, tag))
 
 
-def replace_image_registry(image, registry):
-    if registry is None:
-        return image
+class RegistryTagger(object):
+    def __init__(self, registry):
+        self._registry = registry
 
-    # First try just append the registry without stripping the old
-    joined_image = _join_image_registry(image, registry)
-    # Check if that worked and return if so
-    if ANCHORED_NAME_REGEX.match(joined_image) is not None:
-        return joined_image
+    def generate_tag(self, image):
+        # First try just append the registry without stripping the old
+        joined_image = _join_image_registry(image, self._registry)
+        # Check if that worked and return if so
+        if ANCHORED_NAME_REGEX.match(joined_image) is not None:
+            return joined_image
 
-    # If the tag was invalid, try strip the existing registry first
-    return _join_image_registry(_strip_image_registry(image), registry)
+        # If the tag was invalid, try strip the existing registry first
+        return _join_image_registry(
+            _strip_image_registry(image), self._registry)
 
 
 def _strip_image_registry(image):
@@ -176,7 +178,8 @@ def _generate_semver_versions(version):
     return sub_versions
 
 
-def generate_tags(image_tag, tags=None, version_tagger=None, registry=None):
+def generate_tags(image_tag, tags=None, version_tagger=None,
+                  registry_tagger=None):
     """
     Generate tags for the given image tag.
 
@@ -187,13 +190,18 @@ def generate_tags(image_tag, tags=None, version_tagger=None, registry=None):
         required.
     :param version_tagger:
         The VersionTagger instance to tag with.
+    :param registry_tagger:
+        The RegistryTagger instance to tag with.
     :return:
         The list of tags for this image.
     """
     image, tag = split_image_tag(image_tag)
 
     # Replace registry in image name
-    new_image = replace_image_registry(image, registry)
+    if registry_tagger is not None:
+        new_image = registry_tagger.generate_tag(image)
+    else:
+        new_image = image
 
     # Add the version to any tags
     new_tags = tags if tags is not None else [tag]
@@ -350,9 +358,14 @@ def main(raw_args=sys.argv[1:]):
         else:
             version_tagger = None
 
+        if args.registry:
+            registry_tagger = RegistryTagger(args.registry)
+        else:
+            registry_tagger = None
+
         # Generate tags
         def tagger(image):
-            return generate_tags(image, tags, version_tagger, args.registry)
+            return generate_tags(image, tags, version_tagger, registry_tagger)
         tag_map = [(image, tagger(image)) for image in args.image]
 
         # Tag images

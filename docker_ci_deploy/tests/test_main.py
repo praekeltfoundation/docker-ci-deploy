@@ -9,7 +9,7 @@ from testtools.matchers import (
     AfterPreprocessing as After, Equals, MatchesRegex, MatchesStructure, Not)
 
 from docker_ci_deploy.__main__ import (
-    cmd, DockerCiDeployRunner, join_image_tag, main, replace_image_registry,
+    cmd, DockerCiDeployRunner, join_image_tag, main, RegistryTagger,
     generate_tags, VersionTagger, split_image_tag)
 
 
@@ -86,13 +86,13 @@ class TestJoinImageTagFunc(object):
         assert_that(image_tag, Equals('bar'))
 
 
-class TestReplaceImageRegistryFunc(object):
+class TestRegistryTagger(object):
     def test_image_without_registry(self):
         """
         When an image without a registry is provided, the registry should be
         prepended to the image with a '/' character.
         """
-        image = replace_image_registry('bar', 'registry:5000')
+        image = RegistryTagger('registry:5000').generate_tag('bar')
         assert_that(image, Equals('registry:5000/bar'))
 
     def test_image_with_registry(self):
@@ -100,7 +100,8 @@ class TestReplaceImageRegistryFunc(object):
         When an image is provided that already specifies a registry, that
         registry should be replaced with the given registry.
         """
-        image = replace_image_registry('registry:5000/bar', 'registry2:5000')
+        image = RegistryTagger('registry2:5000').generate_tag(
+            'registry:5000/bar')
         assert_that(image, Equals('registry2:5000/bar'))
 
     def test_image_might_have_registry(self):
@@ -109,18 +110,9 @@ class TestReplaceImageRegistryFunc(object):
         registry, the registry should just be prepended to the image name and
         returned, provided that the resulting image name is valid.
         """
-        image = replace_image_registry(
-            'praekeltorg/alpine-python', 'registry:5000')
-
+        image = RegistryTagger('registry:5000').generate_tag(
+            'praekeltorg/alpine-python')
         assert_that(image, Equals('registry:5000/praekeltorg/alpine-python'))
-
-    def test_registry_is_none(self):
-        """
-        When an image is provided and the provided registry is None, the image
-        should be returned.
-        """
-        image = replace_image_registry('bar', None)
-        assert_that(image, Equals('bar'))
 
     def test_image_unparsable(self):
         """
@@ -130,7 +122,7 @@ class TestReplaceImageRegistryFunc(object):
         image = 'foo:5000:port/name'
         with ExpectedException(
                 ValueError, r"Unable to parse image name '%s'" % (image,)):
-            replace_image_registry(image, 'registry:5000')
+            RegistryTagger('registry:5000').generate_tag(image)
 
 
 class TestVersionTagger(object):
