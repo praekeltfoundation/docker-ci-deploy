@@ -169,6 +169,45 @@ def _generate_semver_versions(version):
     return sub_versions
 
 
+def generate_tags(image_tag, tags=None, version=None, latest=False,
+                  semver=False, registry=None):
+    """
+    Generate tags for the given image tag.
+
+    :param image:
+        A full source image tag.
+    :param tags:
+        A list of tags to tag the image with or None if no new tags are
+        required.
+    :param version:
+        The version to prepend tags with.
+    :param latest:
+        Whether or not to tag this image with the latest tag. Requires a
+        version to be provided.
+    :return:
+        The list of tags for this image.
+    """
+    if latest and not version:
+        raise ValueError('A version must be provided if latest is True')
+    if semver and not version:
+        raise ValueError('A version must be provided if semver is True')
+
+    image, tag = split_image_tag(image_tag)
+
+    # Replace registry in image name
+    new_image = replace_image_registry(image, registry)
+
+    # Add the version to any tags
+    new_tags = tags if tags is not None else [tag]
+    version_tags = []
+    for new_tag in new_tags:
+        version_tags.extend(
+            generate_versioned_tags(new_tag, version, latest, semver))
+
+    # Finally, rejoin the image name and tag parts
+    return [join_image_tag(new_image, v_t) for v_t in version_tags]
+
+
 def cmd(args, sanitised_args=None):
     """
     Execute a command in a subprocess. The process is waited for and the return
@@ -230,10 +269,13 @@ class DockerCiDeployRunner(object):
 
     def docker_tag(self, in_tag, out_tag):
         """ Run ``docker tag`` with the given tags. """
+        self._log('Tagging "%s" as "%s"...' % (in_tag, out_tag),
+                  if_verbose=True)
         self._docker_cmd(['tag', in_tag, out_tag])
 
-    def docker_login(self, username, password, registry):
+    def docker_login(self, username, password, registry=None):
         """ Run ``docker login`` with the given credentials. """
+        self._log('Logging in as "%s"...' % (username,), if_verbose=True)
         args = [
             'login',
             '--username', username,
@@ -249,75 +291,8 @@ class DockerCiDeployRunner(object):
 
     def docker_push(self, tag):
         """ Run ``docker push`` with the given tag. """
+        self._log('Pushing tag "%s"...' % (tag,), if_verbose=True)
         self._docker_cmd(['push', tag])
-
-    def run(self, images, tags=None, version=None, latest=False, semver=False,
-            login=None, registry=None):
-        """
-        Run the script - tag, login and push as necessary.
-
-        :param images:
-            A list of full source image tags.
-        :param tags:
-            A list of tags to tag the image with or None if no new tags are
-            required.
-        :param version:
-            The version to prepend tags with.
-        :param latest:
-            Whether or not to tag this image with the latest tag. Requires a
-            version to be provided.
-        :param login:
-            Login details for the Docker registry in the form
-            <username>:<password>.
-        :param registry:
-            The address to the Docker registry host.
-        """
-        if latest and not version:
-            raise ValueError('A version must be provided if latest is True')
-        if semver and not version:
-            raise ValueError('A version must be provided if semver is True')
-
-        # Build map of images to tags to push with provided tags
-        tag_map = []
-        for image_tag in images:
-            image, tag = split_image_tag(image_tag)
-
-            # Replace registry in image name
-            new_image = replace_image_registry(image, registry)
-
-            # Add the version to any tags
-            new_tags = tags if tags is not None else [tag]
-            version_tags = []
-            for new_tag in new_tags:
-                version_tags.extend(
-                    generate_versioned_tags(new_tag, version, latest, semver))
-
-            # Finally, rejoin the image name and tag parts
-            new_image_tags = [join_image_tag(new_image, version_tag)
-                              for version_tag in version_tags]
-
-            tag_map.append((image_tag, new_image_tags))
-
-        # Tag the images
-        for image_tag, push_tags in tag_map:
-            for push_tag in push_tags:
-                if push_tag != image_tag:
-                    self._log(
-                        'Tagging "%s" as "%s"...' % (image_tag, push_tag),
-                        if_verbose=True)
-                    self.docker_tag(image_tag, push_tag)
-
-        # Login if login details provided
-        if login is not None:
-            username, password = login.split(':', 2)
-            self._log('Logging in as "%s"...' % (username,), if_verbose=True)
-            self.docker_login(username, password, registry)
-
-        # Finally, push the tags
-        for _, push_tags in tag_map:
-            for push_tag in push_tags:
-                self._log('Pushing tag "%s"...' % (push_tag,), if_verbose=True)
-                self.docker_push(push_tag)
 
 
 def main(raw_args=sys.argv[1:]):
@@ -369,9 +344,28 @@ def main(raw_args=sys.argv[1:]):
     tags = chain.from_iterable(args.tag) if args.tag is not None else None
 
     try:
-        runner.run(args.image, tags=tags, version=args.tag_version,
-                   latest=args.tag_latest, semver=args.tag_semver,
-                   login=args.login, registry=args.registry)
+        # Generate tags
+        def tagger(image):
+            return generate_tags(
+                image, tags, args.tag_version, args.tag_latest,
+                args.tag_semver, args.registry)
+        tag_map = [(image, tagger(image)) for image in args.image]
+
+        # Tag images
+        for image, push_tags in tag_map:
+            for push_tag in push_tags:
+                if push_tag != image:
+                    runner.docker_tag(image, push_tag)
+
+        # Login
+        if args.login:
+            username, password = args.login.split(':', 2)
+            runner.docker_login(username, password, args.registry)
+
+        # Push tags
+        for _, push_tags in tag_map:
+            for push_tag in push_tags:
+                runner.docker_push(push_tag)
     except BaseException as e:
         if args.debug:
             raise

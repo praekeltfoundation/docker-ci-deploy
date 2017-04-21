@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import re
-import stat
 import sys
 from subprocess import CalledProcessError
 
@@ -11,7 +10,7 @@ from testtools.matchers import (
 
 from docker_ci_deploy.__main__ import (
     cmd, DockerCiDeployRunner, join_image_tag, main, replace_image_registry,
-    generate_versioned_tags, split_image_tag)
+    generate_tags, generate_versioned_tags, split_image_tag)
 
 
 class TestSplitImageTagFunc(object):
@@ -301,175 +300,101 @@ class TestCmdFunc(object):
         assert_output_lines(capfd, ['errored'], [])
 
 
-class TestDockerCiDeployRunner(object):
-    def test_defaults(self, capfd):
+class TestGenerateTagsFunc(object):
+    def test_no_tags(self):
         """
-        When the runner is run with defaults, the image should be pushed.
+        When no parameters are provided, and an image name without a tag is
+        passed, a list should be returned with the given image name unchanged.
         """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image'])
+        tags = generate_tags('test-image')
 
-        assert_output_lines(capfd, ['push test-image'])
+        assert_that(tags, Equals(['test-image']))
 
-    def test_defaults_multiple_images(self, capfd):
+    def test_no_tags_existing_tag(self):
         """
-        When the runner is run with defaults, and multiple images are provided,
-        all the images should be pushed.
+        When no parameters are provided, and an image tag with a tag is passed,
+        a list should be returned with the given image tag unchanged.
         """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image', 'test-image2'])
+        tags = generate_tags('test-image:abc')
 
-        assert_output_lines(capfd, ['push test-image', 'push test-image2'])
+        assert_that(tags, Equals(['test-image:abc']))
 
-    def test_tags(self, capfd):
+    def test_tags(self):
         """
-        When tags are provided to the runner, the image should be tagged and
-        each tag should be pushed.
+        When the tags parameter is provided, and an image name without a tag is
+        passed, a list of image tags should be returned with the tags appended.
         """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image'], tags=['abc', 'def'])
+        tags = generate_tags('test-image', tags=['abc', 'def'])
 
-        assert_output_lines(capfd, [
-            'tag test-image test-image:abc',
-            'tag test-image test-image:def',
-            'push test-image:abc',
-            'push test-image:def'
-        ])
+        assert_that(tags, Equals(['test-image:abc', 'test-image:def']))
 
-    def test_tags_multiple_images(self, capfd):
+    def test_tag_existing_tag(self):
         """
-        When tags are provided to the runner, and multiple images are provided,
-        all the images should be tagged and each tag should be pushed.
+        When the tags parameter is provided, and an image tag with a tag is
+        passed, a list of image tags should be returned with the tag replaced
+        by the new tags.
         """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image', 'test-image2'], tags=['abc', 'def'])
+        tags = generate_tags('test-image:abc', tags=['def', 'ghi'])
 
-        assert_output_lines(capfd, [
-            'tag test-image test-image:abc',
-            'tag test-image test-image:def',
-            'tag test-image2 test-image2:abc',
-            'tag test-image2 test-image2:def',
-            'push test-image:abc',
-            'push test-image:def',
-            'push test-image2:abc',
-            'push test-image2:def',
-        ])
+        assert_that(tags, Equals(['test-image:def', 'test-image:ghi']))
 
-    def test_tag_replacement(self, capfd):
+    def test_version_options(self):
         """
-        When tags are provided to the runner and the provided image has a tag,
-        that tag should be tagged with the new tag, and the the new tag should
-        be pushed.
+        When the tags and version parameters are provided, and an image name
+        without a tag is passed, a list of image tags should be returned with
+        the correctly generated tags appended.
         """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], tags=['def'])
+        tags = generate_tags('test-image', tags=['abc', 'def'],
+                             version='1.2.3', latest=True, semver=True)
 
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:def',
-            'push test-image:def'
-        ])
+        assert_that(tags, Equals([
+            'test-image:1.2.3-abc',
+            'test-image:1.2-abc',
+            'test-image:1-abc',
+            'test-image:abc',
+            'test-image:1.2.3-def',
+            'test-image:1.2-def',
+            'test-image:1-def',
+            'test-image:def',
+        ]))
 
-    def test_tag_latest(self, capfd):
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], tags=['latest'])
-
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:latest',
-            'push test-image:latest'
-        ])
-
-    def test_version_no_tag(self, capfd):
+    def test_version_options_existing_tag(self):
         """
-        When a version is provided and there is no tag, the image should be
-        tagged with the version.
+        When the tags and version parameters are provided, and an image tag
+        with a tag is passed, a list of image tags should be returned with
+        the correctly generated tags replacing the existing tag.
         """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image'], version='1.2.3')
+        tags = generate_tags('test-image:abc', tags=['def', 'ghi'],
+                             version='1.2.3', latest=True, semver=True)
 
-        assert_output_lines(capfd, [
-            'tag test-image test-image:1.2.3',
-            'push test-image:1.2.3',
-        ])
+        assert_that(tags, Equals([
+            'test-image:1.2.3-def',
+            'test-image:1.2-def',
+            'test-image:1-def',
+            'test-image:def',
+            'test-image:1.2.3-ghi',
+            'test-image:1.2-ghi',
+            'test-image:1-ghi',
+            'test-image:ghi',
+        ]))
 
-    def test_version_existing_tag(self, capfd):
+    def test_latest_requires_version(self):
         """
-        When a version is provided and there is an existing tag in the image
-        tag, then the version should be prepended to the tag.
+        When the latest parameter is True, but the version parameter is not
+        set, an error should be raised.
         """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], version='1.2.3')
+        with ExpectedException(
+                ValueError, r'A version must be provided if latest is True'):
+            generate_tags('test-image', latest=True)
 
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:1.2.3-abc',
-            'push test-image:1.2.3-abc',
-        ])
-
-    def test_version_existing_tag_multiple_images(self, capfd):
+    def test_semver_requires_version(self):
         """
-        When a version is provided and there is an existing tag in the image
-        tags and multiple tags are provided, then the version should be
-        prepended to each tag.
+        When the semver parameter is True, but the version parameter is not
+        set, an error should be raised.
         """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc', 'test-image:def'], version='1.2.3')
-
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:1.2.3-abc',
-            'tag test-image:def test-image:1.2.3-def',
-            'push test-image:1.2.3-abc',
-            'push test-image:1.2.3-def',
-        ])
-
-    def test_version_existing_tag_with_version(self, capfd):
-        """
-        When a version is provided and there is an existing tag in the image
-        tag that already starts with the version then the image should not be
-        retagged.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:1.2.3-abc'], version='1.2.3')
-
-        assert_output_lines(capfd, [
-            'push test-image:1.2.3-abc',
-        ])
-
-    def test_version_existing_tag_is_version(self, capfd):
-        """
-        When a version is provided and there is an existing tag in the image
-        tag that is equal to the version then the image should not be retagged.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:1.2.3'], version='1.2.3')
-
-        assert_output_lines(capfd, [
-            'push test-image:1.2.3',
-        ])
-
-    def test_version_new_tag(self, capfd):
-        """
-        When a version is provided as well as a new tag, the version should be
-        prepended to the new tag and the image tagged with the new tag.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], tags=['def'], version='1.2.3')
-
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:1.2.3-def',
-            'push test-image:1.2.3-def',
-        ])
-
-    def test_version_new_tag_with_version(self, capfd):
-        """
-        When a version is provided as well as a new tag, and the new tag starts
-        with the version, then the image should be tagged with the new version.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], tags=['1.2.3-def'], version='1.2.3')
-
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:1.2.3-def',
-            'push test-image:1.2.3-def',
-        ])
+        with ExpectedException(
+                ValueError, r'A version must be provided if semver is True'):
+            generate_tags('test-image', semver=True)
 
     # FIXME?: The following 2 tests describe a weird, unintuitive edge case :-(
     # Passing `--tag latest` with `--tag-version <version>` but *not*
@@ -480,13 +405,10 @@ class TestDockerCiDeployRunner(object):
         When a version is provided as well as a new tag, and the new tag is
         'latest', then the image should be tagged with the new version only.
         """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], tags=['latest'], version='1.2.3')
+        tags = generate_tags(
+            'test-image:abc', tags=['latest'], version='1.2.3')
 
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:1.2.3',
-            'push test-image:1.2.3',
-        ])
+        assert_that(tags, Equals(['test-image:1.2.3']))
 
     def test_version_new_tag_is_latest_with_version(self, capfd):
         """
@@ -494,368 +416,130 @@ class TestDockerCiDeployRunner(object):
         'latest' plus the version, then the image should be tagged with the
         new version only.
         """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], tags=['1.2.3-latest'], version='1.2.3')
+        tags = generate_tags(
+            'test-image:abc', tags=['1.2.3-latest'], version='1.2.3')
 
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:1.2.3',
-            'push test-image:1.2.3',
-        ])
+        assert_that(tags, Equals(['test-image:1.2.3']))
 
-    def test_latest_no_version(self):
-        """
-        When latest is True but no version was provided, an error should be
-        raised.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        with ExpectedException(
-            ValueError,
-                r'A version must be provided if latest is True'):
-            runner.run(['test-image'], latest=True)
 
-    def test_latest_empty_version(self):
+class TestDockerCiDeployRunner(object):
+    def test_tag(self, capfd):
         """
-        When latest is True but an empty version was provided, an error should
-        be raised.
+        When ``tag`` is called, the Docker CLI should be called with the 'tag'
+        command and the source and target tags.
         """
         runner = DockerCiDeployRunner(executable='echo')
-        with ExpectedException(
-            ValueError,
-                r'A version must be provided if latest is True'):
-            runner.run(['test-image'], latest=True, version='')
+        runner.docker_tag('foo', 'bar')
 
-    def test_semver_no_version(self):
-        """
-        When semver is True but no version was provided, an error should be
-        raised.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        with ExpectedException(
-            ValueError,
-                r'A version must be provided if semver is True'):
-            runner.run(['test-image'], semver=True)
+        assert_output_lines(capfd, ['tag foo bar'])
 
-    def test_semver_empty_version(self):
+    def test_tag_verbose(self, capfd):
         """
-        When semver is True but an empty version was provided, an error should
-        be raised.
+        When ``tag`` is called, and verbose is True, a message should be
+        logged.
         """
-        runner = DockerCiDeployRunner(executable='echo')
-        with ExpectedException(
-            ValueError,
-                r'A version must be provided if semver is True'):
-            runner.run(['test-image'], semver=True, version='')
+        runner = DockerCiDeployRunner(executable='echo', verbose=True)
+        runner.docker_tag('foo', 'bar')
 
-    def test_latest_no_tag_with_version(self, capfd):
-        """
-        When latest is True and no tag is present but a version is, the image
-        should be tagged with the version and the 'latest' tag.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image'], version='1.2.3', latest=True)
+        assert_output_lines(
+            capfd, ['Tagging "foo" as "bar"...', 'tag foo bar'])
 
-        assert_output_lines(capfd, [
-            'tag test-image test-image:1.2.3',
-            'tag test-image test-image:latest',
-            'push test-image:1.2.3',
-            'push test-image:latest',
-        ])
-
-    def test_latest_with_existing_tag_and_version(self, capfd):
+    def test_tag_dry_run(self, capfd):
         """
-        When latest is True and an existing tag is present as well as a
-        version, the image should be tagged with the version prepended to the
-        existing tag and both the new tag and existing tag should be pushed.
+        When ``tag`` is called, and dry_run is True, the Docker command should
+        be printed but not executed.
         """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], version='1.2.3', latest=True)
+        runner = DockerCiDeployRunner(dry_run=True)
+        runner.docker_tag('foo', 'bar')
 
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:1.2.3-abc',
-            'push test-image:1.2.3-abc',
-            'push test-image:abc',
-        ])
-
-    def test_latest_with_existing_version_tag_and_version(self, capfd):
-        """
-        When latest is True and an existing tag is present that is the same
-        provided version, the image should be tagged with the 'latest' tag and
-        both the versioned and 'latest' tags should be pushed.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:1.2.3'], version='1.2.3', latest=True)
-
-        assert_output_lines(capfd, [
-            'tag test-image:1.2.3 test-image:latest',
-            'push test-image:1.2.3',
-            'push test-image:latest',
-        ])
-
-    def test_latest_with_new_tag_and_version(self, capfd):
-        """
-        When latest is True and a new tag and a version is provided, the image
-        should be tagged with the version prepended to the new tag and the new
-        tag by itself.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(
-            ['test-image:abc'], tags=['def'], version='1.2.3', latest=True)
-
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:1.2.3-def',
-            'tag test-image:abc test-image:def',
-            'push test-image:1.2.3-def',
-            'push test-image:def',
-        ])
-
-    def test_latest_with_new_tag_is_version(self, capfd):
-        """
-        When latest is True and a new tag is provided that is equal to the
-        version provided, the image should be tagged with the version and the
-        'latest' tag.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(
-            ['test-image:abc'], tags=['1.2.3'], version='1.2.3', latest=True)
-
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:1.2.3',
-            'tag test-image:abc test-image:latest',
-            'push test-image:1.2.3',
-            'push test-image:latest',
-        ])
-
-    def test_latest_with_new_tag_contains_version(self, capfd):
-        """
-        When latest is True and a new tag is provided that already contains the
-        version provided, the image should be tagged with the versioned tag and
-        the part of the tag without the version.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], tags=['1.2.3-def'], version='1.2.3',
-                   latest=True)
-
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:1.2.3-def',
-            'tag test-image:abc test-image:def',
-            'push test-image:1.2.3-def',
-            'push test-image:def',
-        ])
-
-    # FIXME?: The following 2 tests describe a weird, unintuitive edge case :-(
-    # It's impossible to get a tag of the form `<version>-latest`, even when
-    # passing `--tag latest`, `--tag-version <version>`, and `--tag-latest`.
-    def test_latest_with_new_tag_is_latest_and_version(self, capfd):
-        """
-        When latest is True and a new tag is provided that is 'latest' as well
-        as a version, the image should be tagged with the version and the
-        'latest' tag.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], tags=['latest'], version='1.2.3',
-                   latest=True)
-
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:1.2.3',
-            'tag test-image:abc test-image:latest',
-            'push test-image:1.2.3',
-            'push test-image:latest',
-        ])
-
-    def test_latest_with_new_tag_is_latest_and_contains_version(self, capfd):
-        """
-        When latest is True and a new tag is provided that is 'latest' and
-        contains the provided version, the image should be tagged with the
-        version and the 'latest' tag.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:abc'], tags=['1.2.3-latest'], version='1.2.3',
-                   latest=True)
-
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:1.2.3',
-            'tag test-image:abc test-image:latest',
-            'push test-image:1.2.3',
-            'push test-image:latest',
-        ])
-
-    def test_registry(self, capfd):
-        """
-        When a registry is provided to the runner, the image should be tagged
-        with the registry and pushed.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image'], registry='registry.example.com:5000')
-
-        assert_output_lines(capfd, [
-            'tag test-image registry.example.com:5000/test-image',
-            'push registry.example.com:5000/test-image'
-        ])
-
-    def test_registry_multiple_images(self, capfd):
-        """
-        When a registry is provided to the runner, the image should be tagged
-        with the registry and pushed.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image', 'test-image2'],
-                   registry='registry.example.com:5000')
-
-        assert_output_lines(capfd, [
-            'tag test-image registry.example.com:5000/test-image',
-            'tag test-image2 registry.example.com:5000/test-image2',
-            'push registry.example.com:5000/test-image',
-            'push registry.example.com:5000/test-image2',
-        ])
-
-    def test_tags_and_registry(self, capfd):
-        """
-        When tags and a registry are provided to the runner, the image should
-        be tagged with both the tags and the registry and pushed.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:ghi'], tags=['abc', 'def'],
-                   registry='registry.example.com:5000')
-
-        assert_output_lines(capfd, [
-            'tag test-image:ghi registry.example.com:5000/test-image:abc',
-            'tag test-image:ghi registry.example.com:5000/test-image:def',
-            'push registry.example.com:5000/test-image:abc',
-            'push registry.example.com:5000/test-image:def'
-        ])
+        assert_output_lines(capfd, ['docker tag foo bar'])
 
     def test_login(self, capfd):
         """
-        When login details are provided to the runner, a login request should
-        be made and the image should be pushed.
+        When ``login`` is called, the Docker CLI should be called with the
+        'login' command and the username and password.
         """
         runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image'], login='janedoe:pa55word')
+        runner.docker_login('foo', 'bar')
 
-        assert_output_lines(capfd, [
-            'login --username janedoe --password pa55word',
-            'push test-image'
-        ])
+        assert_output_lines(capfd, ['login --username foo --password bar'])
 
-    def test_registry_and_login(self, capfd):
+    def test_login_registry(self, capfd):
         """
-        When a registry and login details are provided to the runner, the image
-        should be tagged with the registry and a login request should be made
-        to the specified registry. The image should be pushed.
+        When ``login`` is called, and a registry is provided, the Docker CLI
+        should be called with the 'login' command and the username, password,
+        and registry.
         """
         runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image'], registry='registry.example.com:5000',
-                   login='janedoe:pa55word')
+        runner.docker_login('foo', 'bar', registry='https://example.com:5000')
 
         assert_output_lines(capfd, [
-            'tag test-image registry.example.com:5000/test-image',
-            'login --username janedoe --password pa55word '
-            'registry.example.com:5000',
-            'push registry.example.com:5000/test-image'
+            'login --username foo --password bar https://example.com:5000'
         ])
 
-    def test_all_options(self, capfd):
+    def test_login_verbose(self, capfd):
         """
-        When tags, a version, a registry, and login details are provided to the
-        runner, the image should be tagged with the tags, version and registry,
-        a login request should be made to the specified registry, and the tags
-        should be pushed.
+        When ``login`` is called, and verbose is True, a message should be
+        logged that does not contain the password.
         """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:tag'], tags=['latest', 'best'],
-                   version='1.2.3',
-                   registry='registry.example.com:5000',
-                   login='janedoe:pa55word')
+        runner = DockerCiDeployRunner(executable='echo', verbose=True)
+        runner.docker_login('foo', 'bar')
 
         assert_output_lines(capfd, [
-            'tag test-image:tag registry.example.com:5000/test-image:1.2.3',
-            ('tag test-image:tag '
-                'registry.example.com:5000/test-image:1.2.3-best'),
-            'login --username janedoe --password pa55word '
-            'registry.example.com:5000',
-            'push registry.example.com:5000/test-image:1.2.3',
-            'push registry.example.com:5000/test-image:1.2.3-best'
+            'Logging in as "foo"...', 'login --username foo --password bar'
         ])
 
-    def test_all_options_multiple_images(self, capfd):
+    def test_login_dry_run(self, capfd):
         """
-        When multiple images, tags, a version, a registry, and login details
-        are provided to the runner, all the image should be tagged with the
-        tags, a version and registry, a login request should be made to the
-        specified registry, and the tags should be pushed.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.run(['test-image:tag', 'test-image2:tag2'],
-                   tags=['latest', 'best'],
-                   version='1.2.3',
-                   registry='registry.example.com:5000',
-                   login='janedoe:pa55word')
-
-        assert_output_lines(capfd, [
-            'tag test-image:tag registry.example.com:5000/test-image:1.2.3',
-            ('tag test-image:tag '
-                'registry.example.com:5000/test-image:1.2.3-best'),
-            'tag test-image2:tag2 registry.example.com:5000/test-image2:1.2.3',
-            ('tag test-image2:tag2 '
-                'registry.example.com:5000/test-image2:1.2.3-best'),
-            'login --username janedoe --password pa55word '
-            'registry.example.com:5000',
-            'push registry.example.com:5000/test-image:1.2.3',
-            'push registry.example.com:5000/test-image:1.2.3-best',
-            'push registry.example.com:5000/test-image2:1.2.3',
-            'push registry.example.com:5000/test-image2:1.2.3-best',
-        ])
-
-    def test_dry_run(self, capfd):
-        """
-        When running in dry-run mode, the expected commands should be logged
-        and no other output should be produced as no subprocesses should be
-        run.
+        When ``login`` is called, and dry_run is True, the Docker command
+        should be printed but not executed and the password should be
+        obfuscated.
         """
         runner = DockerCiDeployRunner(dry_run=True)
-        logs = []
-        runner.logger = lambda *args: logs.append(' '.join(args))
-        runner.run(['test-image:tag'], tags=['latest'])
+        runner.docker_login('foo', 'bar')
 
-        expected = [
-            'docker tag test-image:tag test-image:latest',
-            'docker push test-image:latest'
-        ]
-        assert_that(logs, Equals(expected))
+        assert_output_lines(
+            capfd, ['docker login --username foo --password <password>'])
 
-        assert_output_lines(capfd, [], [])
-
-    def test_dry_run_obfuscates_password(self, capfd):
+    def test_login_failed_obfuscates_password(self):
         """
-        When running in dry-run mode and login details are provided, the user's
-        password should not be logged.
+        When ``login`` is called, and the command that is executed fails, the
+        password should not be exposed in the exception.
         """
-        runner = DockerCiDeployRunner(dry_run=True)
-        logs = []
-        runner.logger = lambda *args: logs.append(' '.join(args))
-        runner.run(['test-image'], login='janedoe:pa55word')
-
-        expected = [
-            'docker login --username janedoe --password <password>',
-            'docker push test-image'
-        ]
-        assert_that(logs, Equals(expected))
-
-        assert_output_lines(capfd, [], [])
-
-    def test_failed_run_obfuscates_password(self, tmpdir):
-        """
-        When running in dry-run mode and login details are provided, the user's
-        password should not be logged.
-        """
-        exit_1 = tmpdir.join('exit_1.sh')
-        exit_1.write('#!/bin/sh\nexit 1\n')
-        exit_1.chmod(exit_1.stat().mode | stat.S_IEXEC)
-
-        runner = DockerCiDeployRunner(executable=str(exit_1))
+        runner = DockerCiDeployRunner(executable='false')
         with ExpectedException(CalledProcessError,
                                After(str, Not(MatchesRegex(r'pa55word')))):
-            runner.run(['test-image'], login='janedoe:pa55word')
+            runner.docker_login('janedoe', 'pa55word')
+
+    def test_push(self, capfd):
+        """
+        When ``push`` is called, the Docker CLI should be called with the
+        'push' command and the image tag.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        runner.docker_push('foo')
+
+        assert_output_lines(capfd, ['push foo'])
+
+    def test_push_verbose(self, capfd):
+        """
+        When ``push`` is called, and verbose is True, a message should be
+        logged.
+        """
+        runner = DockerCiDeployRunner(executable='echo', verbose=True)
+        runner.docker_push('foo')
+
+        assert_output_lines(capfd, ['Pushing tag "foo"...', 'push foo'])
+
+    def test_push_dry_run(self, capfd):
+        """
+        When ``push`` is called, and dry_run is True, the Docker command should
+        be printed but not executed.
+        """
+        runner = DockerCiDeployRunner(dry_run=True)
+        runner.docker_push('foo')
+
+        assert_output_lines(capfd, ['docker push foo'])
 
 
 class TestMainFunc(object):
