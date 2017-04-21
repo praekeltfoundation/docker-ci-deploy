@@ -92,40 +92,47 @@ def _join_image_registry(image, registry):
     return '/'.join((registry, image))
 
 
-def generate_versioned_tags(tag, version, latest=False, semver=False):
-    """
-    Generate a list of tags based on the given tag and version information.
-    Prepends the given version to the tag, unless the version is already
-    present.
+class VersionTagger(object):
+    def __init__(self, version, latest=False, semver=False):
+        """
+        :param version:
+            The version to prepend to the tag.
+        :param latest:
+            If True, return the tag without the version as well as the
+            versioned tag(s). Include the tag 'latest' if the given tag is
+            empty or None.
+        :param semver:
+            If True, generate a set of versions from the given version with
+            varying degrees of precision.
+        """
+        self._versions = (
+            _generate_semver_versions(version) if semver else [version])
+        self._latest = latest
 
-    :param tag:
-        The input tag to generate version tags from. The tag 'latest' is
-        considered a special-case and will be treated like an empty tag (i.e.
-        the version will be returned as the new tag).
-    :param version:
-        The version to prepend to the tag. If None, the tag will be returned
-        unchanged.
-    :param latest:
-        If True, return the tag without the version as well as the versioned
-        tag(s). Include the tag 'latest' if the given tag is empty or None.
-    :rtype: list
-    """
-    if not version:
-        return [tag]
+    def generate_tags(self, tag):
+        """
+        Generate a list of tags based on the given tag and version information.
+        Prepends the version to the tag, unless the version is already present.
 
-    versions = _generate_semver_versions(version) if semver else [version]
-    stripped_tag = _strip_tag_version(tag, versions)
+        :param tag:
+            The input tag to generate version tags from. The tag 'latest' is
+            considered a special-case and will be treated like an empty tag
+            (i.e. the version will be returned as the new tag).
+        :rtype: list
+        """
+        stripped_tag = _strip_tag_version(tag, self._versions)
 
-    if stripped_tag and stripped_tag != 'latest':
-        versioned_tags = [_join_tag_version(stripped_tag, v) for v in versions]
-    else:
-        versioned_tags = versions
+        if stripped_tag and stripped_tag != 'latest':
+            versioned_tags = (
+                [_join_tag_version(stripped_tag, v) for v in self._versions])
+        else:
+            versioned_tags = list(self._versions)
 
-    if latest:
-        latest_tag = stripped_tag if stripped_tag else 'latest'
-        versioned_tags.append(latest_tag)
+        if self._latest:
+            latest_tag = stripped_tag if stripped_tag else 'latest'
+            versioned_tags.append(latest_tag)
 
-    return versioned_tags
+        return versioned_tags
 
 
 def _strip_tag_version(tag, semver_versions):
@@ -169,8 +176,7 @@ def _generate_semver_versions(version):
     return sub_versions
 
 
-def generate_tags(image_tag, tags=None, version=None, latest=False,
-                  semver=False, registry=None):
+def generate_tags(image_tag, tags=None, version_tagger=None, registry=None):
     """
     Generate tags for the given image tag.
 
@@ -179,19 +185,11 @@ def generate_tags(image_tag, tags=None, version=None, latest=False,
     :param tags:
         A list of tags to tag the image with or None if no new tags are
         required.
-    :param version:
-        The version to prepend tags with.
-    :param latest:
-        Whether or not to tag this image with the latest tag. Requires a
-        version to be provided.
+    :param version_tagger:
+        The VersionTagger instance to tag with.
     :return:
         The list of tags for this image.
     """
-    if latest and not version:
-        raise ValueError('A version must be provided if latest is True')
-    if semver and not version:
-        raise ValueError('A version must be provided if semver is True')
-
     image, tag = split_image_tag(image_tag)
 
     # Replace registry in image name
@@ -199,10 +197,12 @@ def generate_tags(image_tag, tags=None, version=None, latest=False,
 
     # Add the version to any tags
     new_tags = tags if tags is not None else [tag]
-    version_tags = []
-    for new_tag in new_tags:
-        version_tags.extend(
-            generate_versioned_tags(new_tag, version, latest, semver))
+    if version_tagger is not None:
+        version_tags = []
+        for new_tag in new_tags:
+            version_tags.extend(version_tagger.generate_tags(new_tag))
+    else:
+        version_tags = new_tags
 
     # Finally, rejoin the image name and tag parts
     return [join_image_tag(new_image, v_t) for v_t in version_tags]
@@ -344,11 +344,15 @@ def main(raw_args=sys.argv[1:]):
     tags = chain.from_iterable(args.tag) if args.tag is not None else None
 
     try:
+        if args.tag_version:
+            version_tagger = VersionTagger(
+                args.tag_version, args.tag_latest, args.tag_semver)
+        else:
+            version_tagger = None
+
         # Generate tags
         def tagger(image):
-            return generate_tags(
-                image, tags, args.tag_version, args.tag_latest,
-                args.tag_semver, args.registry)
+            return generate_tags(image, tags, version_tagger, args.registry)
         tag_map = [(image, tagger(image)) for image in args.image]
 
         # Tag images
