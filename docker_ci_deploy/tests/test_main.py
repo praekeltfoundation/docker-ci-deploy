@@ -499,6 +499,22 @@ class TestMainFunc(object):
             'push registry.example.com:5000/test-image:abc'
         ])
 
+    def test_version(self, capfd):
+        """
+        When the --tag-version flag is used, the version is added to the image
+        tag.
+        """
+        main([
+            '--executable', 'echo',
+            '--tag-version', '1.2.3',
+            'test-image:abc'
+        ])
+
+        assert_output_lines(capfd, [
+            'tag test-image:abc test-image:1.2.3-abc',
+            'push test-image:1.2.3-abc'
+        ])
+
     def test_image_required(self, capfd):
         """
         When the main function is given no image argument, it should exit with

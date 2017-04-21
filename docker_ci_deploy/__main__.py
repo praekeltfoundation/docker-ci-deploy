@@ -199,9 +199,9 @@ def generate_tags(image_tag, tags=None, version_tagger=None,
 
     # Replace registry in image name
     if registry_tagger is not None:
-        new_image = registry_tagger.generate_tag(image)
+        registry_image = registry_tagger.generate_tag(image)
     else:
-        new_image = image
+        registry_image = image
 
     # Add the version to any tags
     new_tags = tags if tags is not None else [tag]
@@ -213,7 +213,7 @@ def generate_tags(image_tag, tags=None, version_tagger=None,
         version_tags = new_tags
 
     # Finally, rejoin the image name and tag parts
-    return [join_image_tag(new_image, v_t) for v_t in version_tags]
+    return [join_image_tag(registry_image, v_t) for v_t in version_tags]
 
 
 def cmd(args, sanitised_args=None):
