@@ -95,13 +95,13 @@ This will result in the tags `my-image:1.2.3` and `my-image:latest` being pushed
 
 #### Semantic version tags
 ```
-docker-ci-deploy --tag alpine --tag-version 1.2.3 --tag-semver my-image
+docker-ci-deploy --tag alpine --tag-version 1.2.3 --tag-semver -- my-image
 ```
 This will result in the tags `my-image:1.2.3-alpine`, `my-image:1.2-alpine`, and `my-image:1-alpine` being created and pushed. If part of the version is already present in the start of a tag, it will not be added. For example, in the above example if `--tag 1.2-alpine` were provided, the image would still be tagged with `1.2.3-alpine`, not `1.2.3-1.2-alpine`.
 
 This works by stripping pieces from the front of the version string using the regex `[.-]?\w+$`. This means that version strings with some text in them are also supported. For example, a tag such as `8.7.1-jessie` will produce the tags/tag prefixes `8.7.1-jessie`, `8.7.1`, `8.7`, and `8`.
 
-An optional "precision" argument can be provided to the `--tag-semver` option. This sets the minimum precision of the generated versions. For example, by passing `--tag-version 1.2.3 --tag-semver 2`, the versions `1.2.3` and `1.2` are generated but *not* `1.2.3`.
+An optional "precision" argument can be provided to the `--tag-semver` option. This sets the minimum precision of the generated versions. For example, by passing `--tag-version 1.2.3 --tag-semver 2`, the versions `1.2.3` and `1.2` are generated but *not* `1`.
 
 Note that this will **not** tag a version `0` unless the `--tag-zero` option is also used.
 
