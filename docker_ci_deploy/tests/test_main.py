@@ -215,6 +215,15 @@ class TestVersionTagger(object):
         tags = tagger.generate_tags('foo')
         assert_that(tags, Equals(['0-foo']))
 
+    def test_semver_tag_zero_true(self):
+        """
+        When semver and zero are True, and a version with a major version of
+        '0' is provided, a tag should be generated with the version '0'.
+        """
+        tagger = VersionTagger('0.6.11', semver=True, zero=True)
+        tags = tagger.generate_tags('foo')
+        assert_that(tags, Equals(['0.6.11-foo', '0.6-foo', '0-foo']))
+
     def test_semver_tag_contains_semver(self):
         """
         When semver is True and a tag is provided that starts with one of the
@@ -576,6 +585,22 @@ class TestMainFunc(object):
         assert_that(out, Equals(''))
         assert_that(err, MatchesRegex(
             r'.*error: the --tag-semver option requires --tag-version$',
+            re.DOTALL
+        ))
+
+    def test_tag_zero_requires_tag_semver(self, capfd):
+        """
+        When the main function is given the `--tag-zero` option but no
+        `--tag-semver` option, it should exit with a return code of 2 and
+        inform the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--tag-zero', 'test-image:abc'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --tag-zero option requires --tag-semver$',
             re.DOTALL
         ))
 
