@@ -622,6 +622,66 @@ class TestMainFunc(object):
             'push test-image:ghi'
         ])
 
+    def test_tag_requires_arguments(self, capfd):
+        """
+        When the main function is given the `--tag` option without any
+        arguments, an error should be raised.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--tag', '--', 'test-image'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: argument -t/--tag: expected at least one argument$',
+            re.DOTALL
+        ))
+
+    def test_login_requires_argument(self, capfd):
+        """
+        When the main function is given the `--login` option without an
+        argument, an error should be raised.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--login', '--', 'test-image'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: argument -l/--login: expected one argument$',
+            re.DOTALL
+        ))
+
+    def test_registry_requires_argument(self, capfd):
+        """
+        When the main function is given the `--registry` option without an
+        argument, an error should be raised.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--registry', '--', 'test-image'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: argument -r/--registry: expected one argument$',
+            re.DOTALL
+        ))
+
+    def test_executable_requires_argument(self, capfd):
+        """
+        When the main function is given the `--executable` option without an
+        argument, an error should be raised.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--executable', '--', 'test-image'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: argument --executable: expected one argument$',
+            re.DOTALL
+        ))
+
     def test_hides_stacktrace(self, capfd):
         """
         When an error is thrown - for example if the Docker executable cannot

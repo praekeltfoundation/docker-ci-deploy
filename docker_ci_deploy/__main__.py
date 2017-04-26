@@ -306,8 +306,7 @@ class DockerCiDeployRunner(object):
 def main(raw_args=sys.argv[1:]):
     parser = argparse.ArgumentParser(
         description='Tag and push Docker images to a registry.')
-    parser.add_argument('-t', '--tag', nargs='*',
-                        action='append',
+    parser.add_argument('-t', '--tag', nargs='+', action='append',
                         help='Tags to tag the image with before pushing')
     parser.add_argument('-V', '--tag-version',
                         help='Prepend the given version to all tags')
@@ -318,10 +317,10 @@ def main(raw_args=sys.argv[1:]):
     parser.add_argument('-S', '--tag-semver', action='store_true',
                         help='Combine with --tag-version to also tag the '
                              'image with each major and minor version')
-    parser.add_argument('-l', '--login', nargs='?',
+    parser.add_argument('-l', '--login',
                         help='Login details in the form <username>:<password> '
                              'to login to the registry')
-    parser.add_argument('-r', '--registry', nargs='?',
+    parser.add_argument('-r', '--registry',
                         help='Address for the registry to login and push to')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Verbose logging output')
@@ -332,7 +331,7 @@ def main(raw_args=sys.argv[1:]):
                              'this script errors.')
     parser.add_argument('--dry-run', action='store_true',
                         help='Print but do not execute any Docker commands')
-    parser.add_argument('--executable', nargs='?', default='docker',
+    parser.add_argument('--executable', default='docker',
                         help='Path to the Docker client executable (default: '
                              '%(default)s)')
     parser.add_argument('image', nargs='+',
