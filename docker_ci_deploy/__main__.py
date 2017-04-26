@@ -216,7 +216,7 @@ def generate_tags(image_tag, tags=None, version_tagger=None,
     return [join_image_tag(registry_image, v_t) for v_t in version_tags]
 
 
-def cmd(args, sanitised_args=None):
+def cmd(args):
     """
     Execute a command in a subprocess. The process is waited for and the return
     code is checked. If the return code is non-zero, an error is raised. The
@@ -224,9 +224,6 @@ def cmd(args, sanitised_args=None):
 
     :param list args:
         List of program arguments to execute.
-    :param list sanitised_args:
-        Like ``args`` but with any sensitive data redacted. This will be passed
-        to the exception object in the case of a non-zero return code.
     """
     process = subprocess.Popen(
         args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -245,8 +242,7 @@ def cmd(args, sanitised_args=None):
 
     retcode = process.poll()
     if retcode:
-        e_args = args if sanitised_args is None else sanitised_args
-        raise subprocess.CalledProcessError(retcode, e_args, output=out)
+        raise subprocess.CalledProcessError(retcode, args, output=out)
 
 
 class DockerCiDeployRunner(object):
@@ -263,39 +259,25 @@ class DockerCiDeployRunner(object):
             return
         self.logger(*args)
 
-    def _docker_cmd(self, args, sanitised_args=None):
+    def _docker_cmd(self, args):
         args = [self.executable] + args
-        if sanitised_args is not None:
-            sanitised_args = [self.executable] + sanitised_args
 
         if self.dry_run:
-            log_args = args if sanitised_args is None else sanitised_args
-            self._log(*log_args)
+            self._log(*args)
             return
 
-        cmd(args, sanitised_args)
+        cmd(args)
 
     def docker_tag(self, in_tag, out_tag):
         """ Run ``docker tag`` with the given tags. """
+        if in_tag == out_tag:
+            self._log('Not tagging "%s" as itself' % (in_tag,),
+                      if_verbose=True)
+            return
+
         self._log('Tagging "%s" as "%s"...' % (in_tag, out_tag),
                   if_verbose=True)
         self._docker_cmd(['tag', in_tag, out_tag])
-
-    def docker_login(self, username, password, registry=None):
-        """ Run ``docker login`` with the given credentials. """
-        self._log('Logging in as "%s"...' % (username,), if_verbose=True)
-        args = [
-            'login',
-            '--username', username,
-            '--password', password,
-        ]
-        if registry is not None:
-            args.append(registry)
-
-        sanitised_args = list(args)
-        sanitised_args[4] = '<password>'
-
-        self._docker_cmd(args, sanitised_args)
 
     def docker_push(self, tag):
         """ Run ``docker push`` with the given tag. """
@@ -317,18 +299,10 @@ def main(raw_args=sys.argv[1:]):
     parser.add_argument('-S', '--tag-semver', action='store_true',
                         help='Combine with --tag-version to also tag the '
                              'image with each major and minor version')
-    parser.add_argument('-l', '--login',
-                        help='Login details in the form <username>:<password> '
-                             'to login to the registry')
     parser.add_argument('-r', '--registry',
-                        help='Address for the registry to login and push to')
+                        help='Address for the registry to push to')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Verbose logging output')
-    parser.add_argument('-d', '--debug', action='store_true',
-                        help='Run in debug mode with full stacktraces. '
-                             'WARNING: do not use this in production as it is '
-                             'likely that your credentials will be leaked if '
-                             'this script errors.')
     parser.add_argument('--dry-run', action='store_true',
                         help='Print but do not execute any Docker commands')
     parser.add_argument('--executable', default='docker',
@@ -350,45 +324,31 @@ def main(raw_args=sys.argv[1:]):
     # Flatten list of tags
     tags = chain.from_iterable(args.tag) if args.tag is not None else None
 
-    try:
-        if args.tag_version:
-            version_tagger = VersionTagger(
-                args.tag_version, args.tag_latest, args.tag_semver)
-        else:
-            version_tagger = None
+    if args.tag_version:
+        version_tagger = VersionTagger(
+            args.tag_version, args.tag_latest, args.tag_semver)
+    else:
+        version_tagger = None
 
-        if args.registry:
-            registry_tagger = RegistryTagger(args.registry)
-        else:
-            registry_tagger = None
+    if args.registry:
+        registry_tagger = RegistryTagger(args.registry)
+    else:
+        registry_tagger = None
 
-        # Generate tags
-        def tagger(image):
-            return generate_tags(image, tags, version_tagger, registry_tagger)
-        tag_map = [(image, tagger(image)) for image in args.image]
+    # Generate tags
+    def tagger(image):
+        return generate_tags(image, tags, version_tagger, registry_tagger)
+    tag_map = [(image, tagger(image)) for image in args.image]
 
-        # Tag images
-        for image, push_tags in tag_map:
-            for push_tag in push_tags:
-                if push_tag != image:
-                    runner.docker_tag(image, push_tag)
+    # Tag images
+    for image, push_tags in tag_map:
+        for push_tag in push_tags:
+            runner.docker_tag(image, push_tag)
 
-        # Login
-        if args.login:
-            username, password = args.login.split(':', 2)
-            runner.docker_login(username, password, args.registry)
-
-        # Push tags
-        for _, push_tags in tag_map:
-            for push_tag in push_tags:
-                runner.docker_push(push_tag)
-    except BaseException as e:
-        if args.debug:
-            raise
-
-        print('Exception raised during execution: %s' % (str(e),))
-        print('Stacktrace suppressed. Use debug mode to see full stacktrace.')
-        sys.exit(1)
+    # Push tags
+    for _, push_tags in tag_map:
+        for push_tag in push_tags:
+            runner.docker_push(push_tag)
 
 
 if __name__ == "__main__":
