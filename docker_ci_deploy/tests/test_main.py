@@ -181,34 +181,38 @@ class TestVersionTagger(object):
         When a tag does not start with the version, the version should be
         prepended to the tag with a '-' character.
         """
-        tagger = VersionTagger('1.2.3')
+        tagger = VersionTagger(['1.2.3'])
         tags = tagger.generate_tags('foo')
         assert_that(tags, Equals(['1.2.3-foo']))
 
     def test_tag_with_version(self):
         """
-        When a tag starts with the version, then the version and '-' separator
-        should be removed from the tag and the remaining tag processed.
+        When a tag starts with one of the versions, then the version and '-'
+        separator should be removed from the tag and the remaining tag
+        processed.
         """
-        tagger = VersionTagger('1.2.3')
-        tags = tagger.generate_tags('1.2.3-foo')
-        assert_that(tags, Equals(['1.2.3-foo']))
+        tagger = VersionTagger(['1.2.3', '1.2', '1'])
+        tags = tagger.generate_tags('1.2-foo')
+        assert_that(tags, Equals(['1.2.3-foo', '1.2-foo', '1-foo']))
 
     def test_tag_is_version(self):
-        """ When a tag is equal to the version, the tag should be returned. """
-        tagger = VersionTagger('1.2.3')
-        tags = tagger.generate_tags('1.2.3')
-        assert_that(tags, Equals(['1.2.3']))
+        """
+        When a tag is equal to one of the versions, the versions should be
+        returned.
+        """
+        tagger = VersionTagger(['1.2.3', '1.2', '1'])
+        tags = tagger.generate_tags('1')
+        assert_that(tags, Equals(['1.2.3', '1.2', '1']))
 
     def test_tag_is_none(self):
-        """ When a tag is None, the version should be returned. """
-        tagger = VersionTagger('1.2.3')
+        """ When a tag is None, the versions should be returned. """
+        tagger = VersionTagger(['1.2.3'])
         tags = tagger.generate_tags(None)
         assert_that(tags, Equals(['1.2.3']))
 
     def test_tag_is_latest(self):
-        """ When the tag is 'latest', the version should be returned. """
-        tagger = VersionTagger('1.2.3')
+        """ When the tag is 'latest', the versions should be returned. """
+        tagger = VersionTagger(['1.2.3'])
         tags = tagger.generate_tags('latest')
         assert_that(tags, Equals(['1.2.3']))
 
@@ -217,92 +221,45 @@ class TestVersionTagger(object):
         When latest is True and a tag is provided, the versioned and
         unversioned tags should be returned.
         """
-        tagger = VersionTagger('1.2.3', latest=True)
+        tagger = VersionTagger(['1.2.3'], latest=True)
         tags = tagger.generate_tags('foo')
         assert_that(tags, Equals(['1.2.3-foo', 'foo']))
 
-    def test_latest_tag_is_latest(self):
+    def test_latest_tag_with_version(self):
         """
-        When latest is True and a tag is provided, and the tag is 'latest', the
-        versioned tag and 'latest' tag should be returned.
+        When latest is True and the tag already has the version prefixed, the
+        tag and 'latest' tag should be returned.
         """
-        tagger = VersionTagger('1.2.3', latest=True)
-        tags = tagger.generate_tags('latest')
+        tagger = VersionTagger(['1.2.3'], latest=True)
+        tags = tagger.generate_tags('1.2.3-foo')
+        assert_that(tags, Equals(['1.2.3-foo', 'foo']))
+
+    def test_latest_tag_is_version(self):
+        """
+        When latest is True and the tag is the version, the version and
+        'latest' tag should be returned.
+        """
+        tagger = VersionTagger(['1.2.3'], latest=True)
+        tags = tagger.generate_tags('1.2.3')
         assert_that(tags, Equals(['1.2.3', 'latest']))
 
-    def test_semver(self):
+    def test_latest_tag_is_none(self):
         """
-        When semver is True and a tag is provided, the tag should be prefixed
-        with each part of the version.
+        When latest is True the tag is None, the version and 'latest' tag
+        should be returned.
         """
-        tagger = VersionTagger('1.2.3', semver=True)
-        tags = tagger.generate_tags('foo')
-        assert_that(tags, Equals(['1.2.3-foo', '1.2-foo', '1-foo']))
-
-    def test_semver_no_tag(self):
-        """
-        When semver is True and a tag is not provided, tags should be generated
-        for each part of the version.
-        """
-        tagger = VersionTagger('1.2.3', semver=True)
+        tagger = VersionTagger(['1.2.3'], latest=True)
         tags = tagger.generate_tags(None)
-        assert_that(tags, Equals(['1.2.3', '1.2', '1']))
+        assert_that(tags, Equals(['1.2.3', 'latest']))
 
-    def test_semver_do_not_tag_zero(self):
+    def test_latest_tag_is_latest(self):
         """
-        When semver is True, and a version with a major version of '0' is
-        provided, a tag should not be generated with the version '0'.
+        When latest is True and the tag is 'latest', the version and 'latest'
+        tag should be returned.
         """
-        tagger = VersionTagger('0.6.11', semver=True)
-        tags = tagger.generate_tags('foo')
-        assert_that(tags, Equals(['0.6.11-foo', '0.6-foo']))
-
-    def test_semver_tag_zero_if_only_zero(self):
-        """
-        When semver is True, and the version '0' is provided, a tag should be
-        generated with the version '0'.
-        """
-        tagger = VersionTagger('0', semver=True)
-        tags = tagger.generate_tags('foo')
-        assert_that(tags, Equals(['0-foo']))
-
-    def test_semver_tag_zero_true(self):
-        """
-        When semver and zero are True, and a version with a major version of
-        '0' is provided, a tag should be generated with the version '0'.
-        """
-        tagger = VersionTagger('0.6.11', semver=True, zero=True)
-        tags = tagger.generate_tags('foo')
-        assert_that(tags, Equals(['0.6.11-foo', '0.6-foo', '0-foo']))
-
-    def test_semver_tag_contains_semver(self):
-        """
-        When semver is True and a tag is provided that starts with one of the
-        parts of the version, that version part should be removed before the
-        tag is prefixed with each version part.
-        """
-        tagger = VersionTagger('1.2.3', semver=True)
-        tags = tagger.generate_tags('1.2-foo')
-        assert_that(tags, Equals(['1.2.3-foo', '1.2-foo', '1-foo']))
-
-    def test_semver_with_latest(self):
-        """
-        When semver is True, a tag is provided, and latest is True, each
-        version part should be prefixed to the tag and the plain tag should
-        also be returned.
-        """
-        tagger = VersionTagger('1.2.3', latest=True, semver=True)
-        tags = tagger.generate_tags('foo')
-        assert_that(tags, Equals(['1.2.3-foo', '1.2-foo', '1-foo', 'foo']))
-
-    def test_semver_no_tag_with_latest(self):
-        """
-        When semver is True, a tag is not provided, and latest is True, each
-        version part as well as the 'latest' tag should be returned.
-        """
-        tagger = VersionTagger('1.2.3', latest=True, semver=True)
-        tags = tagger.generate_tags(None)
-        assert_that(tags, Equals(['1.2.3', '1.2', '1', 'latest']))
+        tagger = VersionTagger(['1.2.3'], latest=True)
+        tags = tagger.generate_tags('latest')
+        assert_that(tags, Equals(['1.2.3', 'latest']))
 
 
 def assert_output_lines(capfd, stdout_lines, stderr_lines=[]):
@@ -417,7 +374,7 @@ class TestGenerateTagsFunc(object):
         When a version is provided as well as a new tag, and the new tag is
         'latest', then the image should be tagged with the new version only.
         """
-        version_tagger = VersionTagger('1.2.3')
+        version_tagger = VersionTagger(['1.2.3'])
         tags = generate_tags(
             'test-image:abc', tags=['latest'], version_tagger=version_tagger)
 
@@ -429,7 +386,7 @@ class TestGenerateTagsFunc(object):
         'latest' plus the version, then the image should be tagged with the
         new version only.
         """
-        version_tagger = VersionTagger('1.2.3')
+        version_tagger = VersionTagger(['1.2.3'])
         tags = generate_tags('test-image:abc', tags=['1.2.3-latest'],
                              version_tagger=version_tagger)
 

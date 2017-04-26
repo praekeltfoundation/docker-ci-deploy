@@ -95,23 +95,16 @@ def _join_image_registry(image, registry):
 
 
 class VersionTagger(object):
-    def __init__(self, version, latest=False, semver=False, zero=False):
+    def __init__(self, versions, latest=False):
         """
-        :param version:
-            The version to prepend to the tag.
+        :param versions:
+            The list of version to prepend to the tag.
         :param latest:
             If True, return the tag without the version as well as the
             versioned tag(s). Include the tag 'latest' if the given tag is
             empty or None.
-        :param semver:
-            If True, generate a set of versions from the given version with
-            varying degrees of precision.
-        :param zero:
-            If True, also tag the major version '0' when generating semver
-            versions.
         """
-        self._versions = (
-            generate_semver_versions(version, zero) if semver else [version])
+        self._versions = versions
         self._latest = latest
 
     def generate_tags(self, tag):
@@ -342,8 +335,9 @@ def main(raw_args=sys.argv[1:]):
     tags = chain.from_iterable(args.tag) if args.tag is not None else None
 
     if args.tag_version:
-        version_tagger = VersionTagger(
-            args.tag_version, args.tag_latest, args.tag_semver)
+        versions = (generate_semver_versions(args.tag_version, args.tag_zero)
+                    if args.tag_semver else [args.tag_version])
+        version_tagger = VersionTagger(versions, args.tag_latest)
     else:
         version_tagger = None
 
