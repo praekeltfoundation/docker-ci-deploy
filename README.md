@@ -101,7 +101,7 @@ This will result in the tags `my-image:1.2.3-alpine`, `my-image:1.2-alpine`, and
 
 This works by stripping pieces from the front of the version string using the regex `[.-]?\w+$`. This means that version strings with some text in them are also supported. For example, a tag such as `8.7.1-jessie` will produce the tags/tag prefixes `8.7.1-jessie`, `8.7.1`, `8.7`, and `8`.
 
-Note that this will **not** tag a version `0`.
+Note that this will **not** tag a version `0` unless the `--tag-zero` option is also used.
 
 This can be used in combination with `--tag-latest`.
 
