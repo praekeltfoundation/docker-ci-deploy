@@ -224,6 +224,35 @@ class TestVersionTagger(object):
         tags = tagger.generate_tags('foo')
         assert_that(tags, Equals(['0.6.11-foo', '0.6-foo', '0-foo']))
 
+    def test_semver_tag_precision_less_than_version(self):
+        """
+        When precision is less than the precision of the version, semantic
+        versions should be generated up to the specified precision.
+        """
+        tagger = VersionTagger('3.5.3', semver=True, precision=2)
+        tags = tagger.generate_tags('foo')
+        assert_that(tags, Equals(['3.5.3-foo', '3.5-foo']))
+
+    def test_semver_tag_precision_equal_to_version(self):
+        """
+        When precision is equal to the precision of the version, the generated
+        versions should be just the version itself.
+        """
+        tagger = VersionTagger('3.5.3', semver=True, precision=3)
+        tags = tagger.generate_tags('foo')
+        assert_that(tags, Equals(['3.5.3-foo']))
+
+    def test_semver_tag_precision_greater_than_version(self):
+        """
+        When precision is greater than the precision of the version, an error
+        should be raised.
+        """
+        with ExpectedException(
+            ValueError,
+                r'The minimum precision \(4\) is greater than the precision '
+                r"of version '3\.5\.3' \(3\)"):
+            VersionTagger('3.5.3', semver=True, precision=4)
+
     def test_semver_tag_contains_semver(self):
         """
         When semver is True and a tag is provided that starts with one of the
@@ -563,7 +592,7 @@ class TestMainFunc(object):
         inform the user of the missing option.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--tag-semver', 'test-image:abc'])
+            main(['--tag-semver', '--', 'test-image:abc'])
 
         out, err = capfd.readouterr()
         assert_that(out, Equals(''))
@@ -587,6 +616,46 @@ class TestMainFunc(object):
             r'.*error: the --tag-semver option requires --tag-version$',
             re.DOTALL
         ))
+
+    def test_tag_semver_precision_default(self, capfd):
+        """
+        When the main function is given the `--tag-semver` option without an
+        argument, the semver precision should default to 1.
+        """
+        main([
+            '--executable', 'echo',
+            '--tag-semver',
+            '--tag-version', '1.2.3',
+            'test-image:abc',
+        ])
+
+        assert_output_lines(capfd, [
+            'tag test-image:abc test-image:1.2.3-abc',
+            'tag test-image:abc test-image:1.2-abc',
+            'tag test-image:abc test-image:1-abc',
+            'push test-image:1.2.3-abc',
+            'push test-image:1.2-abc',
+            'push test-image:1-abc',
+        ])
+
+    def test_tag_semver_precision(self, capfd):
+        """
+        When the main function is given the `--tag-semver` option with a
+        precision argument, the semver precision should be set to that value.
+        """
+        main([
+            '--executable', 'echo',
+            '--tag-semver', '2',
+            '--tag-version', '1.2.3',
+            'test-image:abc',
+        ])
+
+        assert_output_lines(capfd, [
+            'tag test-image:abc test-image:1.2.3-abc',
+            'tag test-image:abc test-image:1.2-abc',
+            'push test-image:1.2.3-abc',
+            'push test-image:1.2-abc',
+        ])
 
     def test_tag_zero_requires_tag_semver(self, capfd):
         """

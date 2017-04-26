@@ -95,7 +95,8 @@ def _join_image_registry(image, registry):
 
 
 class VersionTagger(object):
-    def __init__(self, version, latest=False, semver=False, zero=False):
+    def __init__(self, version, latest=False, semver=False, precision=1,
+                 zero=False):
         """
         :param version:
             The version to prepend to the tag.
@@ -106,12 +107,15 @@ class VersionTagger(object):
         :param semver:
             If True, generate a set of versions from the given version with
             varying degrees of precision.
+        :param precision:
+            If semver is True, sets the minimum number of version parts in
+            the generated versions.
         :param zero:
             If True, also tag the major version '0' when generating semver
             versions.
         """
-        self._versions = (
-            _generate_semver_versions(version, zero) if semver else [version])
+        self._versions = (_generate_semver_versions(version, precision, zero)
+                          if semver else [version])
         self._latest = latest
 
     def generate_tags(self, tag):
@@ -167,7 +171,7 @@ def _join_tag_version(tag, version):
     return '-'.join((version, tag))
 
 
-def _generate_semver_versions(version, zero=False):
+def _generate_semver_versions(version, precision=1, zero=False):
     """
     Generate strings of the given version to different degrees of precision.
     Won't generate a version 0 unless ``zero`` is True.
@@ -175,9 +179,18 @@ def _generate_semver_versions(version, zero=False):
          '5.5.0-alpha' => ['5.5.0-alpha', '5.5.0', '5.5', '5']
     """
     sub_versions = []
-    while version:
-        sub_versions.append(version)
-        version = re.sub(r'[.-]?\w+$', r'', version)
+    remaining_version = version
+    while remaining_version:
+        sub_versions.append(remaining_version)
+        remaining_version = re.sub(r'[.-]?\w+$', r'', remaining_version)
+
+    if precision > len(sub_versions):
+        raise ValueError(
+            'The minimum precision (%d) is greater than the precision of '
+            "version '%s' (%d)" % (precision, version, len(sub_versions)))
+
+    if precision > 1:
+        sub_versions = sub_versions[:-(precision - 1)]
 
     if not zero and len(sub_versions) > 1 and sub_versions[-1] == '0':
         sub_versions = sub_versions[:-1]
@@ -303,9 +316,12 @@ def main(raw_args=sys.argv[1:]):
                         help='Combine with --tag-version to also tag the '
                              'image without a version so that it is considered'
                              'the latest version')
-    parser.add_argument('-S', '--tag-semver', action='store_true',
+    parser.add_argument('-S', '--tag-semver', nargs='?', type=int,
+                        default=argparse.SUPPRESS, metavar='PRECISION',
                         help='Combine with --tag-version to also tag the '
-                             'image with each major and minor version')
+                             'image with each major and minor version. '
+                             'Optionally, specify the minimum precision of '
+                             'the version information.')
     parser.add_argument('-Z', '--tag-zero', action='store_true',
                         help='Combine with --tag-semver to tag the image with '
                              "the major version '0' when that is part of the "
@@ -324,12 +340,16 @@ def main(raw_args=sys.argv[1:]):
 
     args = parser.parse_args(raw_args)
 
+    semver = hasattr(args, 'tag_semver')
+    semver_precision = (
+        1 if not semver or args.tag_semver is None else args.tag_semver)
+
     # --tag-latest requires --tag-version
     if args.tag_latest and not args.tag_version:
         parser.error('the --tag-latest option requires --tag-version')
-    if args.tag_semver and not args.tag_version:
+    if semver and not args.tag_version:
         parser.error('the --tag-semver option requires --tag-version')
-    if args.tag_zero and not args.tag_semver:
+    if args.tag_zero and not semver:
         parser.error('the --tag-zero option requires --tag-semver')
 
     runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose,
@@ -339,7 +359,8 @@ def main(raw_args=sys.argv[1:]):
 
     if args.tag_version:
         version_tagger = VersionTagger(
-            args.tag_version, args.tag_latest, args.tag_semver)
+            args.tag_version, args.tag_latest, semver, semver_precision,
+            args.tag_zero)
     else:
         version_tagger = None
 
