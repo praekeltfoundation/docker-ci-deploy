@@ -216,7 +216,7 @@ def generate_tags(image_tag, tags=None, version_tagger=None,
     return [join_image_tag(registry_image, v_t) for v_t in version_tags]
 
 
-def cmd(args, sanitised_args=None):
+def cmd(args):
     """
     Execute a command in a subprocess. The process is waited for and the return
     code is checked. If the return code is non-zero, an error is raised. The
@@ -224,9 +224,6 @@ def cmd(args, sanitised_args=None):
 
     :param list args:
         List of program arguments to execute.
-    :param list sanitised_args:
-        Like ``args`` but with any sensitive data redacted. This will be passed
-        to the exception object in the case of a non-zero return code.
     """
     process = subprocess.Popen(
         args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -245,8 +242,7 @@ def cmd(args, sanitised_args=None):
 
     retcode = process.poll()
     if retcode:
-        e_args = args if sanitised_args is None else sanitised_args
-        raise subprocess.CalledProcessError(retcode, e_args, output=out)
+        raise subprocess.CalledProcessError(retcode, args, output=out)
 
 
 class DockerCiDeployRunner(object):
@@ -263,17 +259,14 @@ class DockerCiDeployRunner(object):
             return
         self.logger(*args)
 
-    def _docker_cmd(self, args, sanitised_args=None):
+    def _docker_cmd(self, args):
         args = [self.executable] + args
-        if sanitised_args is not None:
-            sanitised_args = [self.executable] + sanitised_args
 
         if self.dry_run:
-            log_args = args if sanitised_args is None else sanitised_args
-            self._log(*log_args)
+            self._log(*args)
             return
 
-        cmd(args, sanitised_args)
+        cmd(args)
 
     def docker_tag(self, in_tag, out_tag):
         """ Run ``docker tag`` with the given tags. """
