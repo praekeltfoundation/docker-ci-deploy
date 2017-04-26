@@ -172,9 +172,13 @@ def _generate_semver_versions(version):
          '5.5.0-alpha' => ['5.5.0-alpha', '5.5.0', '5.5', '5']
     """
     sub_versions = []
-    while version and version != '0':
+    while version:
         sub_versions.append(version)
         version = re.sub(r'[.-]?\w+$', r'', version)
+
+    if len(sub_versions) > 1 and sub_versions[-1] == '0':
+        sub_versions = sub_versions[:-1]
+
     return sub_versions
 
 

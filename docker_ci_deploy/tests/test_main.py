@@ -197,6 +197,24 @@ class TestVersionTagger(object):
         tags = tagger.generate_tags(None)
         assert_that(tags, Equals(['1.2.3', '1.2', '1']))
 
+    def test_semver_do_not_tag_zero(self):
+        """
+        When semver is True, and a version with a major version of '0' is
+        provided, a tag should not be generated with the version '0'.
+        """
+        tagger = VersionTagger('0.6.11', semver=True)
+        tags = tagger.generate_tags('foo')
+        assert_that(tags, Equals(['0.6.11-foo', '0.6-foo']))
+
+    def test_semver_tag_zero_if_only_zero(self):
+        """
+        When semver is True, and the version '0' is provided, a tag should be
+        generated with the version '0'.
+        """
+        tagger = VersionTagger('0', semver=True)
+        tags = tagger.generate_tags('foo')
+        assert_that(tags, Equals(['0-foo']))
+
     def test_semver_tag_contains_semver(self):
         """
         When semver is True and a tag is provided that starts with one of the
