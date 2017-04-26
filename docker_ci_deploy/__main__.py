@@ -281,22 +281,6 @@ class DockerCiDeployRunner(object):
                   if_verbose=True)
         self._docker_cmd(['tag', in_tag, out_tag])
 
-    def docker_login(self, username, password, registry=None):
-        """ Run ``docker login`` with the given credentials. """
-        self._log('Logging in as "%s"...' % (username,), if_verbose=True)
-        args = [
-            'login',
-            '--username', username,
-            '--password', password,
-        ]
-        if registry is not None:
-            args.append(registry)
-
-        sanitised_args = list(args)
-        sanitised_args[4] = '<password>'
-
-        self._docker_cmd(args, sanitised_args)
-
     def docker_push(self, tag):
         """ Run ``docker push`` with the given tag. """
         self._log('Pushing tag "%s"...' % (tag,), if_verbose=True)
@@ -317,11 +301,8 @@ def main(raw_args=sys.argv[1:]):
     parser.add_argument('-S', '--tag-semver', action='store_true',
                         help='Combine with --tag-version to also tag the '
                              'image with each major and minor version')
-    parser.add_argument('-l', '--login',
-                        help='Login details in the form <username>:<password> '
-                             'to login to the registry')
     parser.add_argument('-r', '--registry',
-                        help='Address for the registry to login and push to')
+                        help='Address for the registry to push to')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Verbose logging output')
     parser.add_argument('-d', '--debug', action='store_true',
@@ -372,11 +353,6 @@ def main(raw_args=sys.argv[1:]):
             for push_tag in push_tags:
                 if push_tag != image:
                     runner.docker_tag(image, push_tag)
-
-        # Login
-        if args.login:
-            username, password = args.login.split(':', 2)
-            runner.docker_login(username, password, args.registry)
 
         # Push tags
         for _, push_tags in tag_map:

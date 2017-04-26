@@ -5,8 +5,7 @@ from subprocess import CalledProcessError
 
 from testtools import ExpectedException
 from testtools.assertions import assert_that
-from testtools.matchers import (
-    AfterPreprocessing as After, Equals, MatchesRegex, MatchesStructure, Not)
+from testtools.matchers import Equals, MatchesRegex, MatchesStructure
 
 from docker_ci_deploy.__main__ import (
     cmd, DockerCiDeployRunner, join_image_tag, main, RegistryTagger,
@@ -391,63 +390,6 @@ class TestDockerCiDeployRunner(object):
 
         assert_output_lines(capfd, ['docker tag foo bar'])
 
-    def test_login(self, capfd):
-        """
-        When ``login`` is called, the Docker CLI should be called with the
-        'login' command and the username and password.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.docker_login('foo', 'bar')
-
-        assert_output_lines(capfd, ['login --username foo --password bar'])
-
-    def test_login_registry(self, capfd):
-        """
-        When ``login`` is called, and a registry is provided, the Docker CLI
-        should be called with the 'login' command and the username, password,
-        and registry.
-        """
-        runner = DockerCiDeployRunner(executable='echo')
-        runner.docker_login('foo', 'bar', registry='https://example.com:5000')
-
-        assert_output_lines(capfd, [
-            'login --username foo --password bar https://example.com:5000'
-        ])
-
-    def test_login_verbose(self, capfd):
-        """
-        When ``login`` is called, and verbose is True, a message should be
-        logged that does not contain the password.
-        """
-        runner = DockerCiDeployRunner(executable='echo', verbose=True)
-        runner.docker_login('foo', 'bar')
-
-        assert_output_lines(capfd, [
-            'Logging in as "foo"...', 'login --username foo --password bar'
-        ])
-
-    def test_login_dry_run(self, capfd):
-        """
-        When ``login`` is called, and dry_run is True, the Docker command
-        should be printed but not executed and the password should be
-        obfuscated.
-        """
-        runner = DockerCiDeployRunner(dry_run=True)
-        runner.docker_login('foo', 'bar')
-
-        assert_output_lines(
-            capfd, ['docker login --username foo --password <password>'])
-
-    def test_login_failed_obfuscates_password(self):
-        """
-        When ``login`` is called, and the command that is executed fails, the
-        password should not be exposed in the exception.
-        """
-        runner = DockerCiDeployRunner(executable='false')
-        with ExpectedException(CalledProcessError,
-                               After(str, Not(MatchesRegex(r'pa55word')))):
-            runner.docker_login('janedoe', 'pa55word')
-
     def test_push(self, capfd):
         """
         When ``push`` is called, the Docker CLI should be called with the
@@ -486,7 +428,6 @@ class TestMainFunc(object):
         should be run as expected.
         """
         main([
-            '--login', 'janedoe:pa55word',
             '--registry', 'registry.example.com:5000',
             '--executable', 'echo',
             'test-image:abc'
@@ -494,8 +435,6 @@ class TestMainFunc(object):
 
         assert_output_lines(capfd, [
             'tag test-image:abc registry.example.com:5000/test-image:abc',
-            'login --username janedoe --password pa55word '
-            'registry.example.com:5000',
             'push registry.example.com:5000/test-image:abc'
         ])
 
@@ -637,21 +576,6 @@ class TestMainFunc(object):
             re.DOTALL
         ))
 
-    def test_login_requires_argument(self, capfd):
-        """
-        When the main function is given the `--login` option without an
-        argument, an error should be raised.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--login', '--', 'test-image'])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-        assert_that(err, MatchesRegex(
-            r'.*error: argument -l/--login: expected one argument$',
-            re.DOTALL
-        ))
-
     def test_registry_requires_argument(self, capfd):
         """
         When the main function is given the `--registry` option without an
@@ -690,7 +614,6 @@ class TestMainFunc(object):
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(1))):
             main([
-                '--login', 'janedoe:pa55word',
                 '--executable', 'does-not-exist1234',
                 'test-image'
             ])
@@ -721,7 +644,6 @@ class TestMainFunc(object):
                 err_type, r'\[Errno 2\] No such file or directory'):
             main([
                 '--debug',
-                '--login', 'janedoe:pa55word',
                 '--executable', 'does-not-exist1234',
                 'test-image'
             ])
