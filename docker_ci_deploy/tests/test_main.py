@@ -9,7 +9,7 @@ from testtools.matchers import Equals, MatchesRegex, MatchesStructure
 
 from docker_ci_deploy.__main__ import (
     cmd, DockerCiDeployRunner, join_image_tag, main, RegistryTagger,
-    generate_tags, VersionTagger, split_image_tag)
+    generate_tags, generate_semver_versions, VersionTagger, split_image_tag)
 
 
 class TestSplitImageTagFunc(object):
@@ -122,6 +122,57 @@ class TestRegistryTagger(object):
         with ExpectedException(
                 ValueError, r"Unable to parse image name '%s'" % (image,)):
             RegistryTagger('registry:5000').generate_tag(image)
+
+
+class TestGenerateSemverVersionsFunc(object):
+    def test_standard_version(self):
+        """
+        When a standard 3-part semantic version is passed, 3 version strings
+        should be returned with decreasing levels of precision.
+        """
+        versions = generate_semver_versions('5.4.1')
+        assert_that(versions, Equals(['5.4.1', '5.4', '5']))
+
+    def test_extended_version(self):
+        """
+        When a version is passed with extra information separated by '-',
+        version strings should be returned with decreasing levels of precision.
+        """
+        versions = generate_semver_versions('5.5.0-alpha')
+        assert_that(versions, Equals(['5.5.0-alpha', '5.5.0', '5.5', '5']))
+
+    def test_one_version_part(self):
+        """
+        When a version with a single part is passed, that version should be
+        returned in a list.
+        """
+        versions = generate_semver_versions('foo')
+        assert_that(versions, Equals(['foo']))
+
+    def test_does_not_generate_zero(self):
+        """
+        When a version is passed with a major version of 0, the version '0'
+        should not be returned in the list of versions.
+        """
+        versions = generate_semver_versions('0.6.11')
+        assert_that(versions, Equals(['0.6.11', '0.6']))
+
+    def test_zero_true(self):
+        """
+        When a version is passed with a major version of 0, and the zero
+        parameter is True, the version '0' should be returned in the list of
+        versions.
+        """
+        versions = generate_semver_versions('0.6.11', zero=True)
+        assert_that(versions, Equals(['0.6.11', '0.6', '0']))
+
+    def test_does_generate_zero_if_only_zero(self):
+        """
+        When the version '0' is passed, that version should be returned in a
+        list.
+        """
+        versions = generate_semver_versions('0')
+        assert_that(versions, Equals(['0']))
 
 
 class TestVersionTagger(object):

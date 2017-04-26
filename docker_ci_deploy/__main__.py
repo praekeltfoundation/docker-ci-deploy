@@ -111,7 +111,7 @@ class VersionTagger(object):
             versions.
         """
         self._versions = (
-            _generate_semver_versions(version, zero) if semver else [version])
+            generate_semver_versions(version, zero) if semver else [version])
         self._latest = latest
 
     def generate_tags(self, tag):
@@ -167,12 +167,16 @@ def _join_tag_version(tag, version):
     return '-'.join((version, tag))
 
 
-def _generate_semver_versions(version, zero=False):
+def generate_semver_versions(version, zero=False):
     """
     Generate strings of the given version to different degrees of precision.
     Won't generate a version 0 unless ``zero`` is True.
     e.g. '5.4.1' => ['5.4.1', '5.4', '5']
          '5.5.0-alpha' => ['5.5.0-alpha', '5.5.0', '5.5', '5']
+
+    :param version: The version string to generate versions from.
+    :param zero:
+        If True, also return the major version '0' when generating versions.
     """
     sub_versions = []
     while version:
