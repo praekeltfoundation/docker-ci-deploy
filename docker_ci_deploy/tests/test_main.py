@@ -390,6 +390,27 @@ class TestDockerCiDeployRunner(object):
 
         assert_output_lines(capfd, ['docker tag foo bar'])
 
+    def test_tag_same_tag(self, capfd):
+        """
+        When ``tag`` is called, and the output tag is the same as the input
+        tag, the command should not be executed.
+        """
+        runner = DockerCiDeployRunner(executable='echo')
+        runner.docker_tag('bar', 'bar')
+
+        assert_output_lines(capfd, [], [])
+
+    def test_tag_same_tag_verbose(self, capfd):
+        """
+        When ``tag`` is called, and the output tag is the same as the input
+        tag, and verbose is True, a message should be logged that explains that
+        no tagging will be done.
+        """
+        runner = DockerCiDeployRunner(executable='echo', verbose=True)
+        runner.docker_tag('bar', 'bar')
+
+        assert_output_lines(capfd, ['Not tagging "bar" as itself'])
+
     def test_push(self, capfd):
         """
         When ``push`` is called, the Docker CLI should be called with the

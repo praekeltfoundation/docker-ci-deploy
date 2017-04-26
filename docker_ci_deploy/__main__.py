@@ -270,6 +270,11 @@ class DockerCiDeployRunner(object):
 
     def docker_tag(self, in_tag, out_tag):
         """ Run ``docker tag`` with the given tags. """
+        if in_tag == out_tag:
+            self._log('Not tagging "%s" as itself' % (in_tag,),
+                      if_verbose=True)
+            return
+
         self._log('Tagging "%s" as "%s"...' % (in_tag, out_tag),
                   if_verbose=True)
         self._docker_cmd(['tag', in_tag, out_tag])
@@ -338,8 +343,7 @@ def main(raw_args=sys.argv[1:]):
     # Tag images
     for image, push_tags in tag_map:
         for push_tag in push_tags:
-            if push_tag != image:
-                runner.docker_tag(image, push_tag)
+            runner.docker_tag(image, push_tag)
 
     # Push tags
     for _, push_tags in tag_map:
