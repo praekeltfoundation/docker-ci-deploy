@@ -305,11 +305,6 @@ def main(raw_args=sys.argv[1:]):
                         help='Address for the registry to push to')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Verbose logging output')
-    parser.add_argument('-d', '--debug', action='store_true',
-                        help='Run in debug mode with full stacktraces. '
-                             'WARNING: do not use this in production as it is '
-                             'likely that your credentials will be leaked if '
-                             'this script errors.')
     parser.add_argument('--dry-run', action='store_true',
                         help='Print but do not execute any Docker commands')
     parser.add_argument('--executable', default='docker',
@@ -331,40 +326,32 @@ def main(raw_args=sys.argv[1:]):
     # Flatten list of tags
     tags = chain.from_iterable(args.tag) if args.tag is not None else None
 
-    try:
-        if args.tag_version:
-            version_tagger = VersionTagger(
-                args.tag_version, args.tag_latest, args.tag_semver)
-        else:
-            version_tagger = None
+    if args.tag_version:
+        version_tagger = VersionTagger(
+            args.tag_version, args.tag_latest, args.tag_semver)
+    else:
+        version_tagger = None
 
-        if args.registry:
-            registry_tagger = RegistryTagger(args.registry)
-        else:
-            registry_tagger = None
+    if args.registry:
+        registry_tagger = RegistryTagger(args.registry)
+    else:
+        registry_tagger = None
 
-        # Generate tags
-        def tagger(image):
-            return generate_tags(image, tags, version_tagger, registry_tagger)
-        tag_map = [(image, tagger(image)) for image in args.image]
+    # Generate tags
+    def tagger(image):
+        return generate_tags(image, tags, version_tagger, registry_tagger)
+    tag_map = [(image, tagger(image)) for image in args.image]
 
-        # Tag images
-        for image, push_tags in tag_map:
-            for push_tag in push_tags:
-                if push_tag != image:
-                    runner.docker_tag(image, push_tag)
+    # Tag images
+    for image, push_tags in tag_map:
+        for push_tag in push_tags:
+            if push_tag != image:
+                runner.docker_tag(image, push_tag)
 
-        # Push tags
-        for _, push_tags in tag_map:
-            for push_tag in push_tags:
-                runner.docker_push(push_tag)
-    except BaseException as e:
-        if args.debug:
-            raise
-
-        print('Exception raised during execution: %s' % (str(e),))
-        print('Stacktrace suppressed. Use debug mode to see full stacktrace.')
-        sys.exit(1)
+    # Push tags
+    for _, push_tags in tag_map:
+        for push_tag in push_tags:
+            runner.docker_push(push_tag)
 
 
 if __name__ == "__main__":

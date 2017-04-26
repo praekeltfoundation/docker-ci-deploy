@@ -4,7 +4,7 @@
 [![Build Status](https://travis-ci.org/praekeltfoundation/docker-ci-deploy.svg?branch=develop)](https://travis-ci.org/praekeltfoundation/docker-ci-deploy)
 [![codecov](https://codecov.io/gh/praekeltfoundation/docker-ci-deploy/branch/develop/graph/badge.svg)](https://codecov.io/gh/praekeltfoundation/docker-ci-deploy)
 
-> NOTE: The `-l`/`--login` parameter has been removed in version 0.3.0. Use a manual `docker login` command in the `before_deploy` section of your Travis file (or equivalent) to log in.
+> NOTE: The `-l`/`--login` parameter (and associated `-d`/`--debug` parameter) has been removed in version 0.3.0. Use a manual `docker login` command in the `before_deploy` section of your Travis file (or equivalent) to log in.
 
 A command-line tool to help generate tags and push Docker images to a registry. Simplifies deployment of Docker images from CI services such as Travis CI.
 
