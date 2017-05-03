@@ -160,7 +160,7 @@ def _join_tag_version(tag, version):
     return '-'.join((version, tag))
 
 
-def generate_semver_versions(version, zero=False):
+def generate_semver_versions(version, precision=1, zero=False):
     """
     Generate strings of the given version to different degrees of precision.
     Won't generate a version 0 unless ``zero`` is True.
@@ -168,13 +168,24 @@ def generate_semver_versions(version, zero=False):
          '5.5.0-alpha' => ['5.5.0-alpha', '5.5.0', '5.5', '5']
 
     :param version: The version string to generate versions from.
+    :param precision:
+        The minimum number of version parts in the generated versions.
     :param zero:
         If True, also return the major version '0' when generating versions.
     """
     sub_versions = []
-    while version:
-        sub_versions.append(version)
-        version = re.sub(r'[.-]?\w+$', r'', version)
+    remaining_version = version
+    while remaining_version:
+        sub_versions.append(remaining_version)
+        remaining_version = re.sub(r'[.-]?\w+$', r'', remaining_version)
+
+    if precision > len(sub_versions):
+        raise ValueError(
+            'The minimum precision (%d) is greater than the precision of '
+            "version '%s' (%d)" % (precision, version, len(sub_versions)))
+
+    if precision > 1:
+        sub_versions = sub_versions[:-(precision - 1)]
 
     if not zero and len(sub_versions) > 1 and sub_versions[-1] == '0':
         sub_versions = sub_versions[:-1]

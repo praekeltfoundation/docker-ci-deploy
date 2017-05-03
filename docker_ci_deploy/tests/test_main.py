@@ -149,6 +149,33 @@ class TestGenerateSemverVersionsFunc(object):
         versions = generate_semver_versions('foo')
         assert_that(versions, Equals(['foo']))
 
+    def test_precision_less_than_version(self):
+        """
+        When precision is less than the precision of the version, semantic
+        versions should be generated up to the specified precision.
+        """
+        versions = generate_semver_versions('3.5.3', precision=2)
+        assert_that(versions, Equals(['3.5.3', '3.5']))
+
+    def test_precision_equal_to_version(self):
+        """
+        When precision is equal to the precision of the version, the generated
+        versions should be just the version itself.
+        """
+        versions = generate_semver_versions('3.5.3', precision=3)
+        assert_that(versions, Equals(['3.5.3']))
+
+    def test_precision_greater_than_version(self):
+        """
+        When precision is greater than the precision of the version, an error
+        should be raised.
+        """
+        with ExpectedException(
+            ValueError,
+                r'The minimum precision \(4\) is greater than the precision '
+                r"of version '3\.5\.3' \(3\)"):
+            generate_semver_versions('3.5.3', precision=4)
+
     def test_does_not_generate_zero(self):
         """
         When a version is passed with a major version of 0, the version '0'
