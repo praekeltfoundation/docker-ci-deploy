@@ -93,6 +93,8 @@ docker-ci-deploy --version 1.2.3 --version-latest my-image
 ```
 This will result in the tags `my-image:1.2.3` and `my-image:latest` being pushed.
 
+> NOTE: The `--version` and `--version-latest` options used to be known as `--tag-version` and `--tag-latest`, respectively. These old option names will continue working for the current release but will be removed soon.
+
 #### Semantic version tags
 ```
 docker-ci-deploy --tag alpine --version 1.2.3 --version-semver my-image
@@ -104,6 +106,8 @@ This works by stripping pieces from the front of the version string using the re
 Note that this will **not** tag a version `0` unless the `--semver-zero` option is also used.
 
 This can be used in combination with `--version-latest`.
+
+> NOTE: The `--version-semver` option used to be known as `--tag-version`. This old option name will continue working for the current release but will be removed soon.
 
 #### Custom registry
 ```
