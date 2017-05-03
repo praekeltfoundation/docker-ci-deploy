@@ -536,6 +536,47 @@ class TestMainFunc(object):
             'push test-image:1.2.3-abc'
         ])
 
+    def test_semver_precision(self, capfd):
+        """
+        When the --semver-precision option is used, the semver versions are
+        generated with the correct precision.
+        """
+        main([
+            '--executable', 'echo',
+            '--version', '1.2.3',
+            '--version-semver',
+            '--semver-precision', '2',
+            'test-image:abc'
+        ])
+
+        assert_output_lines(capfd, [
+            'tag test-image:abc test-image:1.2.3-abc',
+            'tag test-image:abc test-image:1.2-abc',
+            'push test-image:1.2.3-abc',
+            'push test-image:1.2-abc',
+        ])
+
+    def test_semver_precision_default(self, capfd):
+        """
+        When the --version-semver flag is used, but the --semver-precision
+        option is not, the semver precision should default to 1.
+        """
+        main([
+            '--executable', 'echo',
+            '--version', '1.2.3',
+            '--version-semver',
+            'test-image:abc'
+        ])
+
+        assert_output_lines(capfd, [
+            'tag test-image:abc test-image:1.2.3-abc',
+            'tag test-image:abc test-image:1.2-abc',
+            'tag test-image:abc test-image:1-abc',
+            'push test-image:1.2.3-abc',
+            'push test-image:1.2-abc',
+            'push test-image:1-abc',
+        ])
+
     def test_image_required(self, capfd):
         """
         When the main function is given no image argument, it should exit with
@@ -622,6 +663,23 @@ class TestMainFunc(object):
             re.DOTALL
         ))
 
+    def test_semver_precision_requires_version_semver(self, capfd):
+        """
+        When the main function is given the `--semver-precision` option but no
+        `--version-semver` option, it should exit with a return code of 2 and
+        inform the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--semver-precision', '2', 'test-image:abc'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --semver-precision option requires '
+            r'--version-semver$',
+            re.DOTALL
+        ))
+
     def test_semver_zero_requires_version_semver(self, capfd):
         """
         When the main function is given the `--semver-zero` option but no
@@ -671,6 +729,26 @@ class TestMainFunc(object):
         assert_that(out, Equals(''))
         assert_that(err, MatchesRegex(
             r'.*error: argument -t/--tag: expected at least one argument$',
+            re.DOTALL
+        ))
+
+    def test_version_semver_requires_argument(self, capfd):
+        """
+        When the main function is given the `--version-semver` option without
+        an argument, an error should be raised.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main([
+                '--version', '1.2.3',
+                '--version-semver',
+                '--semver-precision',
+                '--', 'test-image',
+            ])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: argument -P/--semver-precision: expected one argument$',
             re.DOTALL
         ))
 

@@ -314,6 +314,11 @@ def main(raw_args=sys.argv[1:]):
     parser.add_argument('-S', '--version-semver', action='store_true',
                         help='Combine with --version to also tag the image '
                              'with each major and minor version')
+    parser.add_argument('-P', '--semver-precision', type=int,
+                        metavar='PRECISION',
+                        help='Combine with --version-semver to specify the '
+                             'minimum number of parts in the generated '
+                             'versions (default: 1)')
     parser.add_argument('-Z', '--semver-zero', action='store_true',
                         help='Combine with --version-semver to tag the image '
                              "with the major version '0' when that is part of "
@@ -340,6 +345,8 @@ def main(raw_args=sys.argv[1:]):
     if args.version_semver and not args.version:
         parser.error('the --version-semver option requires --version')
 
+    if args.semver_precision and not args.version_semver:
+        parser.error('the --semver-precision option requires --version-semver')
     if args.semver_zero and not args.version_semver:
         parser.error('the --semver-zero option requires --version-semver')
 
@@ -349,8 +356,11 @@ def main(raw_args=sys.argv[1:]):
     tags = chain.from_iterable(args.tag) if args.tag is not None else None
 
     if args.version:
-        versions = (generate_semver_versions(args.version, args.semver_zero)
-                    if args.version_semver else [args.version])
+        if args.version_semver:
+            versions = generate_semver_versions(
+                args.version, args.semver_precision or 1, args.semver_zero)
+        else:
+            versions = [args.version]
         version_tagger = VersionTagger(versions, args.version_latest)
     else:
         version_tagger = None
