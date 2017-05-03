@@ -366,8 +366,8 @@ class TestGenerateTagsFunc(object):
         assert_that(tags, Equals(['test-image:def', 'test-image:ghi']))
 
     # FIXME?: The following 2 tests describe a weird, unintuitive edge case :-(
-    # Passing `--tag latest` with `--tag-version <version>` but *not*
-    # `--tag-latest` doesn't actually get you the tag 'latest' but rather
+    # Passing `--tag latest` with `--version <version>` but *not*
+    # `--version-latest` doesn't actually get you the tag 'latest' but rather
     # effectively removes any existing tag.
     def test_version_new_tag_is_latest(self, capfd):
         """
@@ -496,12 +496,11 @@ class TestMainFunc(object):
 
     def test_version(self, capfd):
         """
-        When the --tag-version flag is used, the version is added to the image
-        tag.
+        When the --version flag is used, the version is added to the image tag.
         """
         main([
             '--executable', 'echo',
-            '--tag-version', '1.2.3',
+            '--version', '1.2.3',
             'test-image:abc'
         ])
 
@@ -532,83 +531,83 @@ class TestMainFunc(object):
             assert_that(
                 err, MatchesRegex(r'.*error: too few arguments$', re.DOTALL))
 
-    def test_tag_latest_requires_tag_version(self, capfd):
+    def test_version_latest_requires_version(self, capfd):
         """
-        When the main function is given the `--tag-latest` option but no
-        `--tag-version` option, it should exit with a return code of 2 and
-        inform the user of the missing option.
+        When the main function is given the `--version-latest` option but no
+        `--version` option, it should exit with a return code of 2 and inform
+        the user of the missing option.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--tag-latest', 'test-image:abc'])
+            main(['--version-latest', 'test-image:abc'])
 
         out, err = capfd.readouterr()
         assert_that(out, Equals(''))
         assert_that(err, MatchesRegex(
-            r'.*error: the --tag-latest option requires --tag-version$',
+            r'.*error: the --version-latest option requires --version$',
             re.DOTALL
         ))
 
-    def test_tag_latest_requires_non_empty_tag_version(self, capfd):
+    def test_version_latest_requires_non_empty_version(self, capfd):
         """
-        When the main function is given the `--tag-latest` option and an empty
-        `--tag-version` option, it should exit with a return code of 2 and
+        When the main function is given the `--version-latest` option and an
+        empty `--version` option, it should exit with a return code of 2 and
         inform the user of the missing option.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--tag-latest', '--tag-version', '', 'test-image:abc'])
+            main(['--version-latest', '--version', '', 'test-image:abc'])
 
         out, err = capfd.readouterr()
         assert_that(out, Equals(''))
         assert_that(err, MatchesRegex(
-            r'.*error: the --tag-latest option requires --tag-version$',
+            r'.*error: the --version-latest option requires --version$',
             re.DOTALL
         ))
 
-    def test_tag_semver_requires_tag_version(self, capfd):
+    def test_version_semver_requires_version(self, capfd):
         """
-        When the main function is given the `--tag-semver` option but no
-        `--tag-version` option, it should exit with a return code of 2 and
-        inform the user of the missing option.
+        When the main function is given the `--version-semver` option but no
+        `--version` option, it should exit with a return code of 2 and inform
+        the user of the missing option.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--tag-semver', 'test-image:abc'])
+            main(['--version-semver', 'test-image:abc'])
 
         out, err = capfd.readouterr()
         assert_that(out, Equals(''))
         assert_that(err, MatchesRegex(
-            r'.*error: the --tag-semver option requires --tag-version$',
+            r'.*error: the --version-semver option requires --version$',
             re.DOTALL
         ))
 
-    def test_tag_semver_requires_non_empty_tag_version(self, capfd):
+    def test_version_semver_requires_non_empty_version(self, capfd):
         """
-        When the main function is given the `--tag-semver` option and an empty
-        `--tag-version` option, it should exit with a return code of 2 and
+        When the main function is given the `--version-semver` option and an
+        empty `--version` option, it should exit with a return code of 2 and
         inform the user of the missing option.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--tag-semver', '--tag-version', '', 'test-image:abc'])
+            main(['--version-semver', '--version', '', 'test-image:abc'])
 
         out, err = capfd.readouterr()
         assert_that(out, Equals(''))
         assert_that(err, MatchesRegex(
-            r'.*error: the --tag-semver option requires --tag-version$',
+            r'.*error: the --version-semver option requires --version$',
             re.DOTALL
         ))
 
-    def test_tag_zero_requires_tag_semver(self, capfd):
+    def test_semver_zero_requires_version_semver(self, capfd):
         """
-        When the main function is given the `--tag-zero` option but no
-        `--tag-semver` option, it should exit with a return code of 2 and
+        When the main function is given the `--semver-zero` option but no
+        `--version-semver` option, it should exit with a return code of 2 and
         inform the user of the missing option.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--tag-zero', 'test-image:abc'])
+            main(['--semver-zero', 'test-image:abc'])
 
         out, err = capfd.readouterr()
         assert_that(out, Equals(''))
         assert_that(err, MatchesRegex(
-            r'.*error: the --tag-zero option requires --tag-semver$',
+            r'.*error: the --semver-zero option requires --version-semver$',
             re.DOTALL
         ))
 

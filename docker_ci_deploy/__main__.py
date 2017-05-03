@@ -294,19 +294,19 @@ def main(raw_args=sys.argv[1:]):
         description='Tag and push Docker images to a registry.')
     parser.add_argument('-t', '--tag', nargs='+', action='append',
                         help='Tags to tag the image with before pushing')
-    parser.add_argument('-V', '--tag-version',
+    parser.add_argument('-V', '--version',
                         help='Prepend the given version to all tags')
-    parser.add_argument('-L', '--tag-latest', action='store_true',
-                        help='Combine with --tag-version to also tag the '
-                             'image without a version so that it is considered'
-                             'the latest version')
-    parser.add_argument('-S', '--tag-semver', action='store_true',
-                        help='Combine with --tag-version to also tag the '
-                             'image with each major and minor version')
-    parser.add_argument('-Z', '--tag-zero', action='store_true',
-                        help='Combine with --tag-semver to tag the image with '
-                             "the major version '0' when that is part of the "
-                             'version. This is not done by default.')
+    parser.add_argument('-L', '--version-latest', action='store_true',
+                        help='Combine with --version to also tag the image '
+                             'without a version so that it is considered the '
+                             'latest version')
+    parser.add_argument('-S', '--version-semver', action='store_true',
+                        help='Combine with --version to also tag the image '
+                             'with each major and minor version')
+    parser.add_argument('-Z', '--semver-zero', action='store_true',
+                        help='Combine with --version-semver to tag the image '
+                             "with the major version '0' when that is part of "
+                             'the version. This is not done by default.')
     parser.add_argument('-r', '--registry',
                         help='Address for the registry to push to')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -321,23 +321,23 @@ def main(raw_args=sys.argv[1:]):
 
     args = parser.parse_args(raw_args)
 
-    # --tag-latest requires --tag-version
-    if args.tag_latest and not args.tag_version:
-        parser.error('the --tag-latest option requires --tag-version')
-    if args.tag_semver and not args.tag_version:
-        parser.error('the --tag-semver option requires --tag-version')
-    if args.tag_zero and not args.tag_semver:
-        parser.error('the --tag-zero option requires --tag-semver')
+    if args.version_latest and not args.version:
+        parser.error('the --version-latest option requires --version')
+    if args.version_semver and not args.version:
+        parser.error('the --version-semver option requires --version')
+
+    if args.semver_zero and not args.version_semver:
+        parser.error('the --semver-zero option requires --version-semver')
 
     runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose,
                                   executable=args.executable)
     # Flatten list of tags
     tags = chain.from_iterable(args.tag) if args.tag is not None else None
 
-    if args.tag_version:
-        versions = (generate_semver_versions(args.tag_version, args.tag_zero)
-                    if args.tag_semver else [args.tag_version])
-        version_tagger = VersionTagger(versions, args.tag_latest)
+    if args.version:
+        versions = (generate_semver_versions(args.version, args.semver_zero)
+                    if args.version_semver else [args.version])
+        version_tagger = VersionTagger(versions, args.version_latest)
     else:
         version_tagger = None
 
