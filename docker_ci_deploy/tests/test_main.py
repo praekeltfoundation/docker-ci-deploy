@@ -245,7 +245,7 @@ class TestVersionTagger(object):
 
     def test_latest_tag_is_none(self):
         """
-        When latest is True the tag is None, the version and 'latest' tag
+        When latest is True and the tag is None, the version and 'latest' tag
         should be returned.
         """
         tagger = VersionTagger(['1.2.3'], latest=True)
