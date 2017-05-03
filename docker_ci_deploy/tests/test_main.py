@@ -676,3 +676,94 @@ class TestMainFunc(object):
             r'.*error: argument --executable: expected one argument$',
             re.DOTALL
         ))
+
+    def test_deprecated_tag_version(self, capfd):
+        """
+        When the main function is given the `--tag-version` option, the option
+        should be used as the `--version` option and a deprecation warning
+        should be printed.
+        """
+        main([
+            '--executable', 'echo',
+            '--tag-version', '1.2.3',
+            'test-image',
+        ])
+
+        assert_output_lines(capfd, [
+            'tag test-image test-image:1.2.3',
+            'push test-image:1.2.3',
+        ], [
+            ('DEPRECATED: the --tag-version option is deprecated and will be '
+             'removed in the next release. Please use --version instead')
+        ])
+
+    def test_deprecated_tag_latest(self, capfd):
+        """
+        When the main function is given the `--tag-latest` option, the option
+        should be used as the `--version-latest` option and a deprecation
+        warning should be printed.
+        """
+        main([
+            '--executable', 'echo',
+            '--version', '1.2.3',
+            '--tag-latest',
+            'test-image',
+        ])
+
+        assert_output_lines(capfd, [
+            'tag test-image test-image:1.2.3',
+            'tag test-image test-image:latest',
+            'push test-image:1.2.3',
+            'push test-image:latest',
+        ], [
+            ('DEPRECATED: the --tag-latest option is deprecated and will be '
+             'removed in the next release. Please use --version-latest '
+             'instead')
+        ])
+
+    def test_deprecated_tag_semver(self, capfd):
+        """
+        When the main function is given the `--tag-semver` option, the option
+        should be used as the `--version-semver` option and a deprecation
+        warning should be printed.
+        """
+        main([
+            '--executable', 'echo',
+            '--version', '1.2.3',
+            '--tag-semver',
+            'test-image',
+        ])
+
+        assert_output_lines(capfd, [
+            'tag test-image test-image:1.2.3',
+            'tag test-image test-image:1.2',
+            'tag test-image test-image:1',
+            'push test-image:1.2.3',
+            'push test-image:1.2',
+            'push test-image:1',
+        ], [
+            ('DEPRECATED: the --tag-semver option is deprecated and will be '
+             'removed in the next release. Please use --version-semver '
+             'instead')
+        ])
+
+    def test_version_take_precedence_over_deprecated_tag_version(self, capfd):
+        """
+        When the main function is given the `--version` and `--tag-version`
+        options, the `--version` value takes precedence over the
+        `--tag-version` value.
+        """
+        main([
+            '--executable', 'echo',
+            '--version', '1.2.3',
+            '--tag-version', '4.5.6',
+            'test-image',
+        ])
+
+        assert_output_lines(capfd, [
+            'tag test-image test-image:1.2.3',
+            'push test-image:1.2.3',
+        ], [
+            ('DEPRECATED: the --tag-version option is deprecated and will be '
+             'removed in the next release. Please use --version instead')
+        ])

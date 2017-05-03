@@ -319,7 +319,10 @@ def main(raw_args=sys.argv[1:]):
     parser.add_argument('image', nargs='+',
                         help='Tags (full image names) to push')
 
+    _add_deprecated_arguments(parser)
+
     args = parser.parse_args(raw_args)
+    _resolve_deprecated_arguments(args)
 
     if args.version_latest and not args.version:
         parser.error('the --version-latest option requires --version')
@@ -360,6 +363,33 @@ def main(raw_args=sys.argv[1:]):
     for _, push_tags in tag_map:
         for push_tag in push_tags:
             runner.docker_push(push_tag)
+
+
+def _add_deprecated_arguments(parser):
+    parser.add_argument('--tag-version', help=argparse.SUPPRESS,
+                        default=argparse.SUPPRESS)
+    parser.add_argument('--tag-latest', action='store_true',
+                        help=argparse.SUPPRESS, default=argparse.SUPPRESS)
+    parser.add_argument('--tag-semver', action='store_true',
+                        help=argparse.SUPPRESS, default=argparse.SUPPRESS)
+
+
+def _resolve_deprecated_arguments(args):
+    deprecated_mapping = {
+        'tag_version': 'version',
+        'tag_latest': 'version_latest',
+        'tag_semver': 'version_semver',
+    }
+    for deprecated, new in deprecated_mapping.items():
+        if deprecated in args:
+            print('DEPRECATED: the --{} option is deprecated and will be '
+                  'removed in the next release. Please use --{} instead'
+                  .format(
+                    deprecated.replace('_', '-'),
+                    new.replace('_', '-')),
+                  file=sys.stderr)
+            if not getattr(args, new):
+                setattr(args, new, getattr(args, deprecated))
 
 
 if __name__ == "__main__":
