@@ -103,6 +103,8 @@ This will result in the tags `my-image:1.2.3-alpine`, `my-image:1.2-alpine`, and
 
 This works by stripping pieces from the front of the version string using the regex `[.-]?\w+$`. This means that version strings with some text in them are also supported. For example, a tag such as `8.7.1-jessie` will produce the tags/tag prefixes `8.7.1-jessie`, `8.7.1`, `8.7`, and `8`.
 
+An optional "precision" value can be set using the `--semver-precision` option. This sets the minimum precision of the generated versions. For example, by passing `--version 1.2.3 --version-semver --semver-precision 2`, the versions `1.2.3` and `1.2` are generated but *not* `1`.
+
 Note that this will **not** tag a version `0` unless the `--semver-zero` option is also used.
 
 This can be used in combination with `--version-latest`.
