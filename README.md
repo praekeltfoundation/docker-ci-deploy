@@ -63,6 +63,8 @@ pip install docker-ci-deploy==0.2.0
 
 The script is self-contained and has no dependencies. It can be run by simply executing the [main file](docker-ci-deploy/__main__.py).
 
+**Note:** The script calls the `docker` and `git` binaries on the host for some of its functionality. Those binaries must be present in the process' `PATH` and must be executable by the process' user in order for some functionality to work.
+
 ## Usage
 The script can tag an existing image and push the new tags to a registry.
 
