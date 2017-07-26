@@ -11,6 +11,7 @@ A command-line tool to help generate tags and push Docker images to a registry. 
 In a single command, `docker-ci-deploy` can:
 * Change the tags on images
 * Add version information to image tags
+* Add Git commit/branch information to image tags
 * Add registry addresses to image tags
 * Push tags to a registry
 
@@ -110,6 +111,16 @@ Note that this will **not** tag a version `0` unless the `--semver-zero` option 
 This can be used in combination with `--version-latest`.
 
 > NOTE: The `--version-semver` option used to be known as `--tag-version`. This old option name will continue working for the current release but will be removed soon.
+
+#### Git versioning
+```
+docker-ci-deploy --git-branch --git-hash my-image:latest
+```
+This will result in the Git branch name and  being used as the image version and. It will produce the tag (for example) `my-image:e35cbc26c63208739b4bc2e9881be2dee5aff50f-develop`, if the most recent commit has hash `e35cbc26c63208739b4bc2e9881be2dee5aff50f` and the current branch is called `develop`.
+
+By default this uses the Git reference `HEAD` to find these values. You can use a different reference via the `--git` option.
+
+There are also the `--hash-latest` and `--hash-short` options which can be combined with `--git-hash`. The former will also tag the image *without* the Git hash (much like `--version-latest`). The latter will result in another tag with the short (7-character) Git hash.
 
 #### Custom registry
 ```
