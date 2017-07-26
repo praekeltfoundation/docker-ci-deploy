@@ -9,7 +9,8 @@ from testtools.matchers import Equals, MatchesRegex, MatchesStructure
 
 from docker_ci_deploy.__main__ import (
     cmd, DockerCiDeployRunner, join_image_tag, main, RegistryTagger,
-    generate_tags, generate_semver_versions, VersionTagger, split_image_tag)
+    generate_git_versions, generate_tags, generate_semver_versions,
+    VersionTagger, split_image_tag)
 
 
 class TestSplitImageTagFunc(object):
@@ -288,6 +289,60 @@ class TestVersionTagger(object):
         tags = tagger.generate_tags('latest')
         assert_that(tags, Equals(['1.2.3', 'latest']))
 
+    def test_suffix(self):
+        """
+        When a suffix is provided, it should be appended to the versions before
+        the versions are prepended to the tag.
+        """
+        tagger = VersionTagger(['1.2.3'], suffix='develop')
+        tags = tagger.generate_tags('foo')
+        assert_that(tags, Equals(['1.2.3-develop-foo']))
+
+    def test_suffix_no_versions(self):
+        """
+        When a suffix is provided, and there are no versions, it should be
+        prepended to the tag.
+        """
+        tagger = VersionTagger([], suffix='develop')
+        tags = tagger.generate_tags('foo')
+        assert_that(tags, Equals(['develop-foo']))
+
+    def test_suffix_latest(self):
+        """
+        When a suffix is provided, and latest is True, the tag should be
+        prefixed with both the combination of version and suffix as well as
+        the suffix by itself.
+        """
+        tagger = VersionTagger(['1.2.3'], suffix='develop', latest=True)
+        tags = tagger.generate_tags('foo')
+        assert_that(tags, Equals(['1.2.3-develop-foo', 'develop-foo']))
+
+    def test_suffix_latest_tag(self):
+        """
+        When a suffix is provided, and the tag is 'latest', the suffix appended
+        to the version should be returned.
+        """
+        tagger = VersionTagger(['1.2.3'], suffix='develop')
+        tags = tagger.generate_tags('latest')
+        assert_that(tags, Equals(['1.2.3-develop']))
+
+
+class TestGenerateGitVersionsFunc(object):
+    def test_hash(self):
+        versions = generate_git_versions(
+            'e35cbc26c63208739b4bc2e9881be2dee5aff50f')
+        assert_that(versions, Equals([
+            'e35cbc26c63208739b4bc2e9881be2dee5aff50f',
+        ]))
+
+    def test_hash_short(self):
+        versions = generate_git_versions(
+            'e35cbc26c63208739b4bc2e9881be2dee5aff50f', hash_short=True)
+        assert_that(versions, Equals([
+            'e35cbc26c63208739b4bc2e9881be2dee5aff50f',
+            'e35cbc2',
+        ]))
+
 
 def assert_output_lines(capfd, stdout_lines, stderr_lines=[]):
     out, err = capfd.readouterr()
@@ -311,30 +366,67 @@ class TestCmdFunc(object):
     def test_stdout(self, capfd):
         """
         When a command writes to stdout, that output should be captured and
-        written to Python's stdout.
+        returned and written to Python's stdout.
         """
-        cmd(['echo', 'Hello, World!'])
+        out, err = cmd(['echo', 'Hello, World!'])
+
+        assert_that(out, Equals('Hello, World!\n'))
+        assert_that(err, Equals(''))
 
         assert_output_lines(
             capfd, stdout_lines=['Hello, World!'], stderr_lines=[])
 
+    def test_quiet_stdout(self, capfd):
+        """
+        When a command writes to stdout, that output should be captured and
+        returned but not written to Python's stdout.
+        """
+        out, err = cmd(['echo', 'Hello, World!'], quiet=True)
+
+        assert_that(out, Equals('Hello, World!\n'))
+        assert_that(err, Equals(''))
+
+        assert_output_lines(capfd, stdout_lines=[], stderr_lines=[])
+
     def test_stderr(self, capfd):
         """
         When a command writes to stderr, that output should be captured and
-        written to Python's stderr.
+        returned and written to Python's stderr.
         """
         # Have to do something a bit more complicated to echo to stderr
-        cmd(['awk', 'BEGIN { print "Hello, World!" > "/dev/stderr" }'])
+        out, err = cmd(
+            ['awk', 'BEGIN { print "Hello, World!" > "/dev/stderr" }'])
+
+        assert_that(out, Equals(''))
+        assert_that(err, Equals('Hello, World!\n'))
 
         assert_output_lines(
             capfd, stdout_lines=[], stderr_lines=['Hello, World!'])
+
+    def test_quiet_stderr(self, capfd):
+        """
+        When a command writes to stderr, that output should be captured and
+        and returned but not written to Python's stderr.
+        """
+        # Have to do something a bit more complicated to echo to stderr
+        out, err = cmd(
+            ['awk', 'BEGIN { print "Hello, World!" > "/dev/stderr" }'],
+            quiet=True)
+
+        assert_that(out, Equals(''))
+        assert_that(err, Equals('Hello, World!\n'))
+
+        assert_output_lines(capfd, stdout_lines=[], stderr_lines=[])
 
     def test_stdout_unicode(self, capfd):
         """
         When a command writes Unicode to a standard stream, that output should
         be captured and encoded correctly.
         """
-        cmd(['echo', 'á, é, í, ó, ú, ü, ñ, ¿, ¡'])
+        out, err = cmd(['echo', 'á, é, í, ó, ú, ü, ñ, ¿, ¡'])
+
+        assert_that(out, Equals('á, é, í, ó, ú, ü, ñ, ¿, ¡\n'))
+        assert_that(err, Equals(''))
 
         assert_output_lines(capfd, ['á, é, í, ó, ú, ü, ñ, ¿, ¡'])
 
@@ -348,7 +440,7 @@ class TestCmdFunc(object):
         with ExpectedException(CalledProcessError, MatchesStructure(
                 cmd=Equals(args),
                 returncode=Equals(1),
-                output=Equals(b'errored\n'))):
+                output=Equals('errored\n'))):
             cmd(args)
 
         assert_output_lines(capfd, ['errored'], [])
@@ -696,6 +788,70 @@ class TestMainFunc(object):
             re.DOTALL
         ))
 
+    def test_git_branch_requires_non_empty_git(self, capfd):
+        """
+        When the main function is given the `--git-branch` option and an empty
+        `--git` option, it should exit with a return code of 2 and inform the
+        user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--git', '', '--git-branch', 'test-image:abc'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --git-branch option requires --git$',
+            re.DOTALL
+        ))
+
+    def test_git_hash_requires_non_empty_git(self, capfd):
+        """
+        When the main function is given the `--git-hash` option and an empty
+        `--git` option, it should exit with a return code of 2 and inform the
+        user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--git', '', '--git-hash', 'test-image:abc'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --git-hash option requires --git$',
+            re.DOTALL
+        ))
+
+    def test_hash_latest_requires_git_hash(self, capfd):
+        """
+        When the main function is given the `--hash-latest` option but no
+        `--git-hash` option, it should exit with a return code of 2 and inform
+        the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--hash-latest', 'test-image:abc'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --hash-latest option requires --git-hash$',
+            re.DOTALL
+        ))
+
+    def test_hash_short_requires_git_hash(self, capfd):
+        """
+        When the main function is given the `--hash-short` option but no
+        `--git-hash` option, it should exit with a return code of 2 and inform
+        the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--hash-short', 'test-image:abc'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --hash-short option requires --git-hash$',
+            re.DOTALL
+        ))
+
     def test_many_tags(self, capfd):
         """
         When the main function is given multiple tag arguments in different
@@ -764,6 +920,21 @@ class TestMainFunc(object):
         assert_that(out, Equals(''))
         assert_that(err, MatchesRegex(
             r'.*error: argument -r/--registry: expected one argument$',
+            re.DOTALL
+        ))
+
+    def test_git_requires_argument(self, capfd):
+        """
+        When the main function is given the `--git` option without an argument,
+        an error should be raised.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--git', '--', 'test-image'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: argument -g/--git: expected one argument$',
             re.DOTALL
         ))
 

@@ -95,17 +95,26 @@ def _join_image_registry(image, registry):
 
 
 class VersionTagger(object):
-    def __init__(self, versions, latest=False):
+    def __init__(self, versions, suffix=None, latest=False):
         """
         :param versions:
             The list of version to prepend to the tag.
+        :param suffix:
+            An additional string to append to each version, for example, a
+            branch name.
         :param latest:
             If True, return the tag without the version as well as the
             versioned tag(s). Include the tag 'latest' if the given tag is
             empty or None.
         """
-        self._versions = versions
+        if suffix is not None:
+            self._prefixes = ([_join_tag_parts(v, suffix) for v in versions]
+                              if versions else [suffix])
+        else:
+            self._prefixes = versions
+        self._suffix = suffix
         self._latest = latest
+        self._latest_tag = suffix if suffix is not None else 'latest'
 
     def generate_tags(self, tag):
         """
@@ -118,16 +127,20 @@ class VersionTagger(object):
             (i.e. the version will be returned as the new tag).
         :rtype: list
         """
-        stripped_tag = _strip_tag_version(tag, self._versions)
+        stripped_tag = _strip_tag_version(tag, self._prefixes)
 
         if stripped_tag and stripped_tag != 'latest':
             versioned_tags = (
-                [_join_tag_version(stripped_tag, v) for v in self._versions])
+                [_join_tag_parts(p, stripped_tag) for p in self._prefixes])
         else:
-            versioned_tags = list(self._versions)
+            versioned_tags = list(self._prefixes)
 
         if self._latest:
-            latest_tag = stripped_tag if stripped_tag else 'latest'
+            if stripped_tag:
+                latest_tag = (_join_tag_parts(self._suffix, stripped_tag)
+                              if self._suffix else stripped_tag)
+            else:
+                latest_tag = self._latest_tag
             versioned_tags.append(latest_tag)
 
         return versioned_tags
@@ -152,12 +165,9 @@ def _strip_tag_version(tag, semver_versions):
     return tag
 
 
-def _join_tag_version(tag, version):
-    """
-    Join a tag (not image tag) and version by prepending the version to the tag
-    with a '-' character.
-    """
-    return '-'.join((version, tag))
+def _join_tag_parts(*parts):
+    """ Join tag parts with a '-' character. """
+    return '-'.join(parts)
 
 
 def generate_semver_versions(version, precision=1, zero=False):
@@ -193,7 +203,12 @@ def generate_semver_versions(version, precision=1, zero=False):
     return sub_versions
 
 
-def generate_tags(image_tag, tags=None, version_tagger=None,
+def generate_git_versions(_hash, hash_short=False):
+    """ Generate the list of Git versions from the given Git hash. """
+    return [_hash, _hash[:7]] if hash_short else [_hash]
+
+
+def generate_tags(image_tag, tags=None, version_tagger=None, git_tagger=None,
                   registry_tagger=None):
     """
     Generate tags for the given image tag.
@@ -204,7 +219,9 @@ def generate_tags(image_tag, tags=None, version_tagger=None,
         A list of tags to tag the image with or None if no new tags are
         required.
     :param version_tagger:
-        The VersionTagger instance to tag with.
+        The VersionTagger instance to tag semantic version information with.
+    :param git_tagger:
+        The VersionTagger instance to tag Git commit information with.
     :param registry_tagger:
         The RegistryTagger instance to tag with.
     :return:
@@ -218,20 +235,27 @@ def generate_tags(image_tag, tags=None, version_tagger=None,
     else:
         registry_image = image
 
-    # Add the version to any tags
     new_tags = tags if tags is not None else [tag]
+    if git_tagger is not None:
+        git_tags = []
+        for new_tag in new_tags:
+            git_tags.extend(git_tagger.generate_tags(new_tag))
+    else:
+        git_tags = new_tags
+
+    # Add the version to any tags
     if version_tagger is not None:
         version_tags = []
-        for new_tag in new_tags:
-            version_tags.extend(version_tagger.generate_tags(new_tag))
+        for git_tag in git_tags:
+            version_tags.extend(version_tagger.generate_tags(git_tag))
     else:
-        version_tags = new_tags
+        version_tags = git_tags
 
     # Finally, rejoin the image name and tag parts
     return [join_image_tag(registry_image, v_t) for v_t in version_tags]
 
 
-def cmd(args):
+def cmd(args, quiet=False):
     """
     Execute a command in a subprocess. The process is waited for and the return
     code is checked. If the return code is non-zero, an error is raised. The
@@ -239,25 +263,28 @@ def cmd(args):
 
     :param list args:
         List of program arguments to execute.
+    :param bool quiet:
+        If True, don't write the program's output to Python's stdout/stderr.
+    :return:
+        A tuple of the stdout/stderr of the process.
     """
     process = subprocess.Popen(
-        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        # This is a simple command executor: set universal_newlines True so
+        # that we get str stdout/stderr instead of bytes.
+        universal_newlines=True)
 
     out, err = process.communicate()
 
-    if sys.version_info >= (3,):
-        sys.stdout.buffer.write(out)
-        sys.stderr.buffer.write(err)
-    else:
-        # Python 2 doesn't have a .buffer on stdout/stderr for writing binary
-        # data. The below will only work for unicode in Python 2.7.1+ due to
-        # https://bugs.python.org/issue4947.
+    if not quiet:
         sys.stdout.write(out)
         sys.stderr.write(err)
 
     retcode = process.poll()
     if retcode:
         raise subprocess.CalledProcessError(retcode, args, output=out)
+
+    return (out, err)
 
 
 class DockerCiDeployRunner(object):
@@ -300,6 +327,19 @@ class DockerCiDeployRunner(object):
         self._docker_cmd(['push', tag])
 
 
+def _git_rev_parse(ref, *options):
+    out, _ = cmd(['git', 'rev-parse'] + list(options) + [ref], quiet=True)
+    return out.strip()
+
+
+def git_branch(ref):
+    return _git_rev_parse(ref, '--abbrev-ref')
+
+
+def git_hash(ref):
+    return _git_rev_parse(ref)
+
+
 def main(raw_args=sys.argv[1:]):
     parser = argparse.ArgumentParser(
         description='Tag and push Docker images to a registry.')
@@ -323,6 +363,20 @@ def main(raw_args=sys.argv[1:]):
                         help='Combine with --version-semver to tag the image '
                              "with the major version '0' when that is part of "
                              'the version. This is not done by default.')
+    parser.add_argument('-g', '--git', metavar='REFERENCE', default='HEAD',
+                        help='Set the Git reference to work with (default: '
+                             '%(default)s)')
+    parser.add_argument('-B', '--git-branch', action='store_true',
+                        help='Tag the image with the current branch')
+    parser.add_argument('-H', '--git-hash', action='store_true',
+                        help='Tag the image with the current commit hash')
+    parser.add_argument('-l', '--hash-latest', action='store_true',
+                        help='Combine with --git-hash to also tag the image '
+                             'without a Git hash so that that it is '
+                             'considered the latest commit')
+    parser.add_argument('-s', '--hash-short', action='store_true',
+                        help='Combine with --git-hash to also tag the image '
+                             'with the short version of the Git hash')
     parser.add_argument('-r', '--registry',
                         help='Address for the registry to push to')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -350,6 +404,16 @@ def main(raw_args=sys.argv[1:]):
     if args.semver_zero and not args.version_semver:
         parser.error('the --semver-zero option requires --version-semver')
 
+    if args.git_branch and not args.git:
+        parser.error('the --git-branch option requires --git')
+    if args.git_hash and not args.git:
+        parser.error('the --git-hash option requires --git')
+
+    if args.hash_latest and not args.git_hash:
+        parser.error('the --hash-latest option requires --git-hash')
+    if args.hash_short and not args.git_hash:
+        parser.error('the --hash-short option requires --git-hash')
+
     runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose,
                                   executable=args.executable)
     # Flatten list of tags
@@ -361,7 +425,7 @@ def main(raw_args=sys.argv[1:]):
                 args.version, args.semver_precision or 1, args.semver_zero)
         else:
             versions = [args.version]
-        version_tagger = VersionTagger(versions, args.version_latest)
+        version_tagger = VersionTagger(versions, latest=args.version_latest)
     else:
         version_tagger = None
 
@@ -370,9 +434,23 @@ def main(raw_args=sys.argv[1:]):
     else:
         registry_tagger = None
 
+    if args.git_branch or args.git_hash:
+        branch = None
+        versions = []
+        if args.git_branch:
+            branch = git_branch(args.git)
+        if args.git_hash:
+            _hash = git_hash(args.git)
+            versions = generate_git_versions(_hash, args.hash_short)
+        git_tagger = VersionTagger(
+            versions, suffix=branch, latest=args.hash_latest)
+    else:
+        git_tagger = None
+
     # Generate tags
     def tagger(image):
-        return generate_tags(image, tags, version_tagger, registry_tagger)
+        return generate_tags(
+            image, tags, version_tagger, git_tagger, registry_tagger)
     tag_map = [(image, tagger(image)) for image in args.image]
 
     # Tag images
