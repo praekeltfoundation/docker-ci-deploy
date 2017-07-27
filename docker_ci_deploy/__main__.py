@@ -390,12 +390,11 @@ def main(raw_args=sys.argv[1:]):
                         help='Combine with --version-semver to tag the image '
                              "with the major version '0' when that is part of "
                              'the version. This is not done by default.')
-    parser.add_argument('-g', '--git', default=None,
+    parser.add_argument('-g', '--git', default=':HEAD',
                         help='Path to the directory that Git should be '
                              'executed in (equivalent to `git -C`) and '
                              'the Git reference to inspect in the form '
-                             '[DIR][:REF] (default: '
-                             '<current working directory>:HEAD)')
+                             '[DIR][:REF] (default: %(default)s)')
     parser.add_argument('-B', '--git-branch', action='store_true',
                         help='Tag the image with the current branch')
     parser.add_argument('-H', '--git-hash', action='store_true',

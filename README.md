@@ -122,7 +122,7 @@ This will result in the Git branch name and  being used as the image version and
 
 There are also the `--hash-latest` and `--hash-short` options which can be combined with `--git-hash`. The former will also tag the image *without* the Git hash (much like `--version-latest`). The latter will result in another tag with the short (7-character) Git hash.
 
-By default this operates in the current working directory and uses the Git reference `HEAD` to find these values. You can use a different working directory and reference via the `--git` option, for example `--git ~/workspace/project:HEAD^1`.
+By default this operates in the current working directory and uses the [Git reference](https://git-scm.com/book/en/v2/Git-Internals-Git-References) `HEAD` to find these values. You can use a different working directory and reference via the `--git` option, for example `--git ~/workspace/project:HEAD^1`.
 
 The path to the Git executable used can be configured using `--git-exec`.
 
