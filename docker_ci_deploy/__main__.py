@@ -255,7 +255,7 @@ def generate_tags(image_tag, tags=None, version_tagger=None, git_tagger=None,
     return [join_image_tag(registry_image, v_t) for v_t in version_tags]
 
 
-def cmd(args, quiet=False, **popen_kwargs):
+def cmd(args, quiet=False):
     """
     Execute a command in a subprocess. The process is waited for and the return
     code is checked. If the return code is non-zero, an error is raised. The
@@ -272,8 +272,7 @@ def cmd(args, quiet=False, **popen_kwargs):
         args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         # This is a simple command executor: set universal_newlines True so
         # that we get str stdout/stderr instead of bytes.
-        universal_newlines=True,
-        **popen_kwargs)
+        universal_newlines=True)
 
     out, err = process.communicate()
 
@@ -330,16 +329,17 @@ class DockerRunner(object):
 class GitRunner(object):
     def __init__(self, executable='git', working_dir=None):
         self.executable = executable
-        self.popen_kwargs = {'cwd': working_dir} if working_dir else {}
+        self._c_opt = ['-C', working_dir] if working_dir else []
 
     def _git_cmd(self, args):
         args = [self.executable] + args
         # No dry-run mode-- we only do non-mutating git things and we need the
         # results from those things to do anything
-        return cmd(args, **self.popen_kwargs, quiet=True)
+        return cmd(args, quiet=True)
 
     def _git_rev_parse(self, ref, *options):
-        out, _ = self._git_cmd(['rev-parse'] + list(options) + [ref])
+        out, _ = self._git_cmd(
+            self._c_opt + ['rev-parse'] + list(options) + [ref])
         return out.strip()
 
     def current_branch(self, ref):
@@ -391,7 +391,8 @@ def main(raw_args=sys.argv[1:]):
                              "with the major version '0' when that is part of "
                              'the version. This is not done by default.')
     parser.add_argument('-g', '--git', default=None,
-                        help='Path to the directory of the Git repository and '
+                        help='Path to the directory that Git should be '
+                             'executed in (equivalent to `git -C`) and '
                              'the Git reference to inspect in the form '
                              '[DIR][:REF] (default: '
                              '<current working directory>:HEAD)')

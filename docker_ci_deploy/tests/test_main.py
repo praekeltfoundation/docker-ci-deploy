@@ -600,81 +600,54 @@ class TestDockerRunner(object):
 
 
 class TestGitRunner(object):
-    @pytest.fixture(scope='class')
-    @classmethod
-    def info_script(cls, tmpdir):
-        # FIXME: bit of a hack, and a Unix-specific one at that
-        script = tmpdir.join('info.sh')
-        script.write("""\
-#!/usr/bin/env sh
-echo "args: '$*'"
-echo "pwd: '$(pwd)'"
-""")
-        script.chmod(0o755)
-        return script
-
-    def test_current_branch(self, info_script, capfd):
+    def test_current_branch(self, capfd):
         """
         When the current_branch method is called, Git is called with the
         correct arguments in the context of the current working directory.
         """
-        runner = GitRunner(executable=str(info_script))
+        runner = GitRunner(executable='echo')
         out = runner.current_branch('HEAD')
-        assert_that(out.split('\n'), MatchesListwise([
-            Equals("args: 'rev-parse --abbrev-ref HEAD'"),
-            Equals("pwd: '{}'".format(os.getcwd()))
-        ]))
+        assert_that(out, Equals('rev-parse --abbrev-ref HEAD'))
 
         # Shouldn't be any output to stdout
         assert_output_lines(capfd, [])
 
-    def test_current_hash(self, info_script, capfd):
+    def test_current_hash(self, capfd):
         """
         When the current_hash method is called, Git is called with the
         correct arguments in the context of the current working directory.
         """
-        runner = GitRunner(executable=str(info_script))
+        runner = GitRunner(executable='echo')
         out = runner.current_hash('HEAD')
-        assert_that(out.split('\n'), MatchesListwise([
-            Equals("args: 'rev-parse HEAD'"),
-            Equals("pwd: '{}'".format(os.getcwd()))
-        ]))
+        assert_that(out, Equals('rev-parse HEAD'))
 
         # Shouldn't be any output to stdout
         assert_output_lines(capfd, [])
 
-    def test_current_branch_working_dir(self, info_script, capfd):
+    def test_current_branch_working_dir(self, capfd):
         """
         When the current_branch method is called, and a specific working
         directory is set for the runner, Git is called with the correct
         arguments in the context of the specified working directory.
         """
-        runner = GitRunner(executable=str(info_script),
-                           working_dir=info_script.dirname)
+        runner = GitRunner(executable='echo', working_dir='/foo/bar')
 
         out = runner.current_branch('HEAD')
-        assert_that(out.split('\n'), MatchesListwise([
-            Equals("args: 'rev-parse --abbrev-ref HEAD'"),
-            Equals("pwd: '{}'".format(info_script.dirname))
-        ]))
+        assert_that(out, Equals('-C /foo/bar rev-parse --abbrev-ref HEAD'))
 
         # Shouldn't be any output to stdout
         assert_output_lines(capfd, [])
 
-    def test_current_hash_working_dir(self, info_script, capfd):
+    def test_current_hash_working_dir(self, capfd):
         """
         When the current_hash method is called, and a specific working
         directory is set for the runner, Git is called with the correct
         arguments in the context of the specified working directory.
         """
-        runner = GitRunner(executable=str(info_script),
-                           working_dir=info_script.dirname)
+        runner = GitRunner(executable='echo', working_dir='/foo/bar')
 
         out = runner.current_hash('HEAD')
-        assert_that(out.split('\n'), MatchesListwise([
-            Equals("args: 'rev-parse HEAD'"),
-            Equals("pwd: '{}'".format(info_script.dirname))
-        ]))
+        assert_that(out, Equals('-C /foo/bar rev-parse HEAD'))
 
         # Shouldn't be any output to stdout
         assert_output_lines(capfd, [])
