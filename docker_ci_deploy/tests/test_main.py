@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
-import os
 import re
 import sys
 from subprocess import CalledProcessError
 
-import pytest
 from testtools import ExpectedException
 from testtools.assertions import assert_that
-from testtools.matchers import (
-    Equals, MatchesListwise, MatchesRegex, MatchesStructure)
+from testtools.matchers import Equals, MatchesRegex, MatchesStructure
 
 from docker_ci_deploy.__main__ import (
     cmd, DockerRunner, GitRunner, join_image_tag, main, RegistryTagger,
