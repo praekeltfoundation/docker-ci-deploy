@@ -120,9 +120,11 @@ docker-ci-deploy --git-branch --git-hash my-image:latest
 ```
 This will result in the Git branch name and  being used as the image version and. It will produce the tag (for example) `my-image:e35cbc26c63208739b4bc2e9881be2dee5aff50f-develop`, if the most recent commit has hash `e35cbc26c63208739b4bc2e9881be2dee5aff50f` and the current branch is called `develop`.
 
-By default this uses the Git reference `HEAD` to find these values. You can use a different reference via the `--git` option.
-
 There are also the `--hash-latest` and `--hash-short` options which can be combined with `--git-hash`. The former will also tag the image *without* the Git hash (much like `--version-latest`). The latter will result in another tag with the short (7-character) Git hash.
+
+By default this operates in the current working directory and uses the Git reference `HEAD` to find these values. You can use a different working directory and reference via the `--git` option, for example `--git ~/workspace/project:HEAD^1`.
+
+The path to the Git executable used can be configured using `--git-exec`.
 
 #### Custom registry
 ```

@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
+import os
 import re
 import sys
 from subprocess import CalledProcessError
 
+import pytest
 from testtools import ExpectedException
 from testtools.assertions import assert_that
-from testtools.matchers import Equals, MatchesRegex, MatchesStructure
+from testtools.matchers import (
+    Equals, MatchesListwise, MatchesRegex, MatchesStructure)
 
 from docker_ci_deploy.__main__ import (
-    cmd, DockerCiDeployRunner, join_image_tag, main, RegistryTagger,
+    cmd, DockerRunner, GitRunner, join_image_tag, main, RegistryTagger,
     generate_git_versions, generate_tags, generate_semver_versions,
-    VersionTagger, split_image_tag)
+    parse_git_address, VersionTagger, split_image_tag)
 
 
 class TestSplitImageTagFunc(object):
@@ -512,13 +515,13 @@ class TestGenerateTagsFunc(object):
         assert_that(tags, Equals(['test-image:1.2.3']))
 
 
-class TestDockerCiDeployRunner(object):
+class TestDockerRunner(object):
     def test_tag(self, capfd):
         """
         When ``tag`` is called, the Docker CLI should be called with the 'tag'
         command and the source and target tags.
         """
-        runner = DockerCiDeployRunner(executable='echo')
+        runner = DockerRunner(executable='echo')
         runner.docker_tag('foo', 'bar')
 
         assert_output_lines(capfd, ['tag foo bar'])
@@ -528,7 +531,7 @@ class TestDockerCiDeployRunner(object):
         When ``tag`` is called, and verbose is True, a message should be
         logged.
         """
-        runner = DockerCiDeployRunner(executable='echo', verbose=True)
+        runner = DockerRunner(executable='echo', verbose=True)
         runner.docker_tag('foo', 'bar')
 
         assert_output_lines(
@@ -539,7 +542,7 @@ class TestDockerCiDeployRunner(object):
         When ``tag`` is called, and dry_run is True, the Docker command should
         be printed but not executed.
         """
-        runner = DockerCiDeployRunner(dry_run=True)
+        runner = DockerRunner(dry_run=True)
         runner.docker_tag('foo', 'bar')
 
         assert_output_lines(capfd, ['docker tag foo bar'])
@@ -549,7 +552,7 @@ class TestDockerCiDeployRunner(object):
         When ``tag`` is called, and the output tag is the same as the input
         tag, the command should not be executed.
         """
-        runner = DockerCiDeployRunner(executable='echo')
+        runner = DockerRunner(executable='echo')
         runner.docker_tag('bar', 'bar')
 
         assert_output_lines(capfd, [], [])
@@ -560,7 +563,7 @@ class TestDockerCiDeployRunner(object):
         tag, and verbose is True, a message should be logged that explains that
         no tagging will be done.
         """
-        runner = DockerCiDeployRunner(executable='echo', verbose=True)
+        runner = DockerRunner(executable='echo', verbose=True)
         runner.docker_tag('bar', 'bar')
 
         assert_output_lines(capfd, ['Not tagging "bar" as itself'])
@@ -570,7 +573,7 @@ class TestDockerCiDeployRunner(object):
         When ``push`` is called, the Docker CLI should be called with the
         'push' command and the image tag.
         """
-        runner = DockerCiDeployRunner(executable='echo')
+        runner = DockerRunner(executable='echo')
         runner.docker_push('foo')
 
         assert_output_lines(capfd, ['push foo'])
@@ -580,7 +583,7 @@ class TestDockerCiDeployRunner(object):
         When ``push`` is called, and verbose is True, a message should be
         logged.
         """
-        runner = DockerCiDeployRunner(executable='echo', verbose=True)
+        runner = DockerRunner(executable='echo', verbose=True)
         runner.docker_push('foo')
 
         assert_output_lines(capfd, ['Pushing tag "foo"...', 'push foo'])
@@ -590,10 +593,133 @@ class TestDockerCiDeployRunner(object):
         When ``push`` is called, and dry_run is True, the Docker command should
         be printed but not executed.
         """
-        runner = DockerCiDeployRunner(dry_run=True)
+        runner = DockerRunner(dry_run=True)
         runner.docker_push('foo')
 
         assert_output_lines(capfd, ['docker push foo'])
+
+
+class TestGitRunner(object):
+    @pytest.fixture(scope='class')
+    @classmethod
+    def info_script(cls, tmpdir):
+        # FIXME: bit of a hack, and a Unix-specific one at that
+        script = tmpdir.join('info.sh')
+        script.write("""\
+#!/usr/bin/env sh
+echo "args: '$*'"
+echo "pwd: '$(pwd)'"
+""")
+        script.chmod(0o755)
+        return script
+
+    def test_current_branch(self, info_script, capfd):
+        """
+        When the current_branch method is called, Git is called with the
+        correct arguments in the context of the current working directory.
+        """
+        runner = GitRunner(executable=str(info_script))
+        out = runner.current_branch('HEAD')
+        assert_that(out.split('\n'), MatchesListwise([
+            Equals("args: 'rev-parse --abbrev-ref HEAD'"),
+            Equals("pwd: '{}'".format(os.getcwd()))
+        ]))
+
+        # Shouldn't be any output to stdout
+        assert_output_lines(capfd, [])
+
+    def test_current_hash(self, info_script, capfd):
+        """
+        When the current_hash method is called, Git is called with the
+        correct arguments in the context of the current working directory.
+        """
+        runner = GitRunner(executable=str(info_script))
+        out = runner.current_hash('HEAD')
+        assert_that(out.split('\n'), MatchesListwise([
+            Equals("args: 'rev-parse HEAD'"),
+            Equals("pwd: '{}'".format(os.getcwd()))
+        ]))
+
+        # Shouldn't be any output to stdout
+        assert_output_lines(capfd, [])
+
+    def test_current_branch_working_dir(self, info_script, capfd):
+        """
+        When the current_branch method is called, and a specific working
+        directory is set for the runner, Git is called with the correct
+        arguments in the context of the specified working directory.
+        """
+        runner = GitRunner(executable=str(info_script),
+                           working_dir=info_script.dirname)
+
+        out = runner.current_branch('HEAD')
+        assert_that(out.split('\n'), MatchesListwise([
+            Equals("args: 'rev-parse --abbrev-ref HEAD'"),
+            Equals("pwd: '{}'".format(info_script.dirname))
+        ]))
+
+        # Shouldn't be any output to stdout
+        assert_output_lines(capfd, [])
+
+    def test_current_hash_working_dir(self, info_script, capfd):
+        """
+        When the current_hash method is called, and a specific working
+        directory is set for the runner, Git is called with the correct
+        arguments in the context of the specified working directory.
+        """
+        runner = GitRunner(executable=str(info_script),
+                           working_dir=info_script.dirname)
+
+        out = runner.current_hash('HEAD')
+        assert_that(out.split('\n'), MatchesListwise([
+            Equals("args: 'rev-parse HEAD'"),
+            Equals("pwd: '{}'".format(info_script.dirname))
+        ]))
+
+        # Shouldn't be any output to stdout
+        assert_output_lines(capfd, [])
+
+
+class TestParseGitFunc(object):
+    def test_empty_string(self):
+        """ Given an empty string, the defaults should be returned. """
+        assert_that(parse_git_address(''), Equals((None, None)))
+
+    def test_none(self):
+        """ Given None, the defaults should be returned. """
+        assert_that(parse_git_address(None), Equals((None, None)))
+
+    def test_colon(self):
+        """ Given the separator character, the defaults should be returned. """
+        assert_that(parse_git_address(':'), Equals((None, None)))
+
+    def test_defaults(self):
+        """
+        Given None, and with custom default values, those defaults should be
+        returned.
+        """
+        assert_that(parse_git_address(None, 'foo', 'bar'),
+                    Equals(('foo', 'bar')))
+
+    def test_path(self):
+        """ Given a path, the path and the ref default should be returned. """
+        assert_that(parse_git_address('/var/praekelt/'),
+                    Equals(('/var/praekelt/', None)))
+
+    def test_ref(self):
+        """
+        Given a ref prefixed with the separator, the path default and the ref
+        should be returned.
+        """
+        assert_that(parse_git_address(':HEAD^1'), Equals((None, 'HEAD^1')))
+
+    def test_path_and_ref(self):
+        """
+        Given a path and ref separated by the separator, the path and the ref
+        should be returned.
+        """
+        assert_that(parse_git_address('/var/praekelt/:HEAD^1'),
+                    Equals(('/var/praekelt/', 'HEAD^1')))
 
 
 class TestMainFunc(object):
@@ -788,38 +914,6 @@ class TestMainFunc(object):
             re.DOTALL
         ))
 
-    def test_git_branch_requires_non_empty_git(self, capfd):
-        """
-        When the main function is given the `--git-branch` option and an empty
-        `--git` option, it should exit with a return code of 2 and inform the
-        user of the missing option.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--git', '', '--git-branch', 'test-image:abc'])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-        assert_that(err, MatchesRegex(
-            r'.*error: the --git-branch option requires --git$',
-            re.DOTALL
-        ))
-
-    def test_git_hash_requires_non_empty_git(self, capfd):
-        """
-        When the main function is given the `--git-hash` option and an empty
-        `--git` option, it should exit with a return code of 2 and inform the
-        user of the missing option.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--git', '', '--git-hash', 'test-image:abc'])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-        assert_that(err, MatchesRegex(
-            r'.*error: the --git-hash option requires --git$',
-            re.DOTALL
-        ))
-
     def test_hash_latest_requires_git_hash(self, capfd):
         """
         When the main function is given the `--hash-latest` option but no
@@ -950,6 +1044,21 @@ class TestMainFunc(object):
         assert_that(out, Equals(''))
         assert_that(err, MatchesRegex(
             r'.*error: argument --executable: expected one argument$',
+            re.DOTALL
+        ))
+
+    def test_git_exec_requires_argument(self, capfd):
+        """
+        When the main function is given the `--git-exec` option without an
+        argument, an error should be raised.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            main(['--git-exec', '--', 'test-image'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: argument --git-exec: expected one argument$',
             re.DOTALL
         ))
 

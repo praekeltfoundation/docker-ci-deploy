@@ -255,7 +255,7 @@ def generate_tags(image_tag, tags=None, version_tagger=None, git_tagger=None,
     return [join_image_tag(registry_image, v_t) for v_t in version_tags]
 
 
-def cmd(args, quiet=False):
+def cmd(args, quiet=False, **popen_kwargs):
     """
     Execute a command in a subprocess. The process is waited for and the return
     code is checked. If the return code is non-zero, an error is raised. The
@@ -272,7 +272,8 @@ def cmd(args, quiet=False):
         args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         # This is a simple command executor: set universal_newlines True so
         # that we get str stdout/stderr instead of bytes.
-        universal_newlines=True)
+        universal_newlines=True,
+        **popen_kwargs)
 
     out, err = process.communicate()
 
@@ -287,8 +288,7 @@ def cmd(args, quiet=False):
     return (out, err)
 
 
-class DockerCiDeployRunner(object):
-
+class DockerRunner(object):
     logger = print
 
     def __init__(self, executable='docker', dry_run=False, verbose=False):
@@ -327,17 +327,44 @@ class DockerCiDeployRunner(object):
         self._docker_cmd(['push', tag])
 
 
-def _git_rev_parse(ref, *options):
-    out, _ = cmd(['git', 'rev-parse'] + list(options) + [ref], quiet=True)
-    return out.strip()
+class GitRunner(object):
+    def __init__(self, executable='git', working_dir=None):
+        self.executable = executable
+        self.popen_kwargs = {'cwd': working_dir} if working_dir else {}
+
+    def _git_cmd(self, args):
+        args = [self.executable] + args
+        # No dry-run mode-- we only do non-mutating git things and we need the
+        # results from those things to do anything
+        return cmd(args, **self.popen_kwargs, quiet=True)
+
+    def _git_rev_parse(self, ref, *options):
+        out, _ = self._git_cmd(['rev-parse'] + list(options) + [ref])
+        return out.strip()
+
+    def current_branch(self, ref):
+        """ Get the current branch for the given reference. """
+        return self._git_rev_parse(ref, '--abbrev-ref')
+
+    def current_hash(self, ref):
+        return self._git_rev_parse(ref)
 
 
-def git_branch(ref):
-    return _git_rev_parse(ref, '--abbrev-ref')
+def parse_git_address(address, default_path=None, default_ref=None):
+    """
+    Parse the Git address argument with the form [DIR][:REF] into a tuple of
+    the directory path and Git reference.
+    """
+    if not address:
+        return (default_path, default_ref)
 
+    parts = address.split(':', 1)
+    if len(parts) == 1:
+        parts = (parts[0], None)
 
-def git_hash(ref):
-    return _git_rev_parse(ref)
+    p1, p2 = parts
+
+    return (p1 if p1 else default_path, p2 if p2 else default_ref)
 
 
 def main(raw_args=sys.argv[1:]):
@@ -363,9 +390,11 @@ def main(raw_args=sys.argv[1:]):
                         help='Combine with --version-semver to tag the image '
                              "with the major version '0' when that is part of "
                              'the version. This is not done by default.')
-    parser.add_argument('-g', '--git', metavar='REFERENCE', default='HEAD',
-                        help='Set the Git reference to work with (default: '
-                             '%(default)s)')
+    parser.add_argument('-g', '--git', default=None,
+                        help='Path to the directory of the Git repository and '
+                             'the Git reference to inspect in the form '
+                             '[DIR][:REF] (default: '
+                             '<current working directory>:HEAD)')
     parser.add_argument('-B', '--git-branch', action='store_true',
                         help='Tag the image with the current branch')
     parser.add_argument('-H', '--git-hash', action='store_true',
@@ -386,6 +415,9 @@ def main(raw_args=sys.argv[1:]):
     parser.add_argument('--executable', default='docker',
                         help='Path to the Docker client executable (default: '
                              '%(default)s)')
+    parser.add_argument('--git-exec', default='git',
+                        help='Path to the Git executable (default: '
+                             '%(default)s)')
     parser.add_argument('image', nargs='+',
                         help='Tags (full image names) to push')
 
@@ -404,18 +436,13 @@ def main(raw_args=sys.argv[1:]):
     if args.semver_zero and not args.version_semver:
         parser.error('the --semver-zero option requires --version-semver')
 
-    if args.git_branch and not args.git:
-        parser.error('the --git-branch option requires --git')
-    if args.git_hash and not args.git:
-        parser.error('the --git-hash option requires --git')
-
     if args.hash_latest and not args.git_hash:
         parser.error('the --hash-latest option requires --git-hash')
     if args.hash_short and not args.git_hash:
         parser.error('the --hash-short option requires --git-hash')
 
-    runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose,
-                                  executable=args.executable)
+    runner = DockerRunner(dry_run=args.dry_run, verbose=args.verbose,
+                          executable=args.executable)
     # Flatten list of tags
     tags = chain.from_iterable(args.tag) if args.tag is not None else None
 
@@ -435,12 +462,14 @@ def main(raw_args=sys.argv[1:]):
         registry_tagger = None
 
     if args.git_branch or args.git_hash:
+        path, ref = parse_git_address(args.git, default_ref='HEAD')
+        git_runner = GitRunner(args.git_exec, path)
         branch = None
         versions = []
         if args.git_branch:
-            branch = git_branch(args.git)
+            branch = git_runner.current_branch(ref)
         if args.git_hash:
-            _hash = git_hash(args.git)
+            _hash = git_runner.current_hash(ref)
             versions = generate_git_versions(_hash, args.hash_short)
         git_tagger = VersionTagger(
             versions, suffix=branch, latest=args.hash_latest)
