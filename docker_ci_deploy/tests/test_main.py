@@ -8,9 +8,9 @@ from testtools.assertions import assert_that
 from testtools.matchers import Equals, MatchesRegex, MatchesStructure
 
 from docker_ci_deploy.__main__ import (
-    cmd, DockerCiDeployRunner, join_image_tag, main, RegistryNameGenerator,
-    generate_tags, generate_semver_versions, VersionTagGenerator,
-    split_image_tag)
+    cmd, DockerCiDeployRunner, generate_semver_versions, generate_tags,
+    join_image_tag, main, RegistryNameGenerator, split_image_tag,
+    VersionTagGenerator)
 
 
 class TestSplitImageTagFunc(object):
