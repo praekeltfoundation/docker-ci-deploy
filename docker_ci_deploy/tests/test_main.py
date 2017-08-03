@@ -612,8 +612,7 @@ class TestParseArgsFunc(object):
     def test_version_latest_requires_version(self, capfd):
         """
         When the `--version-latest` option is given but no `--version` option,
-        it should exit with a return code of 2 and inform the user of the
-        missing option.
+        an error should be raised.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--version-latest', 'test-image:abc'])
@@ -628,8 +627,7 @@ class TestParseArgsFunc(object):
     def test_version_latest_requires_non_empty_version(self, capfd):
         """
         When the `--version-latest` option and an empty `--version` option are
-        given, it should exit with a return code of 2 and inform the user of
-        the missing option.
+        given,  an error should be raised.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--version-latest', '--version', '', 'test-image:abc'])
@@ -644,8 +642,7 @@ class TestParseArgsFunc(object):
     def test_version_semver_requires_version(self, capfd):
         """
         When the `--version-semver` option but no `--version` option is given,
-        it should exit with a return code of 2 and inform the user of the
-        missing option.
+         an error should be raised.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--version-semver', 'test-image:abc'])
@@ -660,8 +657,7 @@ class TestParseArgsFunc(object):
     def test_version_semver_requires_non_empty_version(self, capfd):
         """
         When the `--version-semver` option and an empty `--version` option are
-        given, it should exit with a return code of 2 and inform the user of
-        the missing option.
+        given,  an error should be raised.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--version-semver', '--version', '', 'test-image:abc'])
@@ -676,8 +672,7 @@ class TestParseArgsFunc(object):
     def test_semver_precision_requires_version_semver(self, capfd):
         """
         When the `--semver-precision` option but no `--version-semver` option
-        is given, it should exit with a return code of 2 and inform the user of
-        the missing option.
+        is given,  an error should be raised.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--semver-precision', '2', 'test-image:abc'])
