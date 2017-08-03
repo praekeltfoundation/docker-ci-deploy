@@ -332,6 +332,23 @@ def main(argv=sys.argv[1:]):
     runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose,
                                   executable=args.executable)
 
+    image_tag_generator = _create_image_tag_generator(args)
+
+    tag_map = [(image, image_tag_generator.generate_image_tags(image))
+               for image in args.image]
+
+    # Tag images
+    for image, push_tags in tag_map:
+        for push_tag in push_tags:
+            runner.docker_tag(image, push_tag)
+
+    # Push tags
+    for _, push_tags in tag_map:
+        for push_tag in push_tags:
+            runner.docker_push(push_tag)
+
+
+def _create_image_tag_generator(args):
     tag_generators = []
     if args.tag is not None:
         tag_generators.append(
@@ -349,20 +366,7 @@ def main(argv=sys.argv[1:]):
     tag_generator = SequentialTagGenerator(tag_generators)
     name_generator = (
         RegistryNameGenerator(args.registry) if args.registry else None)
-    image_tag_generator = ImageTagGenerator(tag_generator, name_generator)
-
-    tag_map = [(image, image_tag_generator.generate_image_tags(image))
-               for image in args.image]
-
-    # Tag images
-    for image, push_tags in tag_map:
-        for push_tag in push_tags:
-            runner.docker_tag(image, push_tag)
-
-    # Push tags
-    for _, push_tags in tag_map:
-        for push_tag in push_tags:
-            runner.docker_push(push_tag)
+    return ImageTagGenerator(tag_generator, name_generator)
 
 
 def parse_args(argv):
