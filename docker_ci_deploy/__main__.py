@@ -340,7 +340,7 @@ def main(argv=sys.argv[1:]):
     if args.version:
         if args.version_semver:
             versions = generate_semver_versions(
-                args.version, args.semver_precision or 1, args.semver_zero)
+                args.version, args.semver_precision, args.semver_zero)
         else:
             versions = [args.version]
         tag_generators.append(
@@ -410,8 +410,16 @@ def parse_args(argv):
     if args.version_semver and not args.version:
         parser.error('the --version-semver option requires --version')
 
-    if args.semver_precision and not args.version_semver:
-        parser.error('the --semver-precision option requires --version-semver')
+    if args.semver_precision is not None:
+        if not args.version_semver:
+            parser.error(
+                'the --semver-precision option requires --version-semver')
+        if args.semver_precision < 1:
+            parser.error("--semver-precision must be >= 1, not '{}'".format(
+                args.semver_precision))
+    else:
+        args.semver_precision = 1
+
     if args.semver_zero and not args.version_semver:
         parser.error('the --semver-zero option requires --version-semver')
 

@@ -567,6 +567,27 @@ class TestDockerCiDeployRunner(object):
 
 
 class TestParseArgsFunc(object):
+    def test_defaults(self):
+        """
+        When the minimum set of required arguments (an image name) are passed
+        to the parse_args function, default values should be set for each
+        argument as expected.
+        """
+        args = parse_args(['test-image'])
+        assert_that(args, MatchesStructure.byEquality(
+            tag=None,
+            version=None,
+            version_latest=False,
+            version_semver=False,
+            semver_precision=1,
+            semver_zero=False,
+            registry=None,
+            verbose=False,
+            dry_run=False,
+            executable='docker',
+            image=['test-image']
+        ))
+
     def test_image_required(self, capfd):
         """
         When the parse_args function is given no image argument, it should exit
@@ -668,6 +689,26 @@ class TestParseArgsFunc(object):
             r'.*error: the --semver-precision option requires '
             r'--version-semver$',
             re.DOTALL
+        ))
+
+    def test_semver_precision_requires_gr_eq_one(self, capfd):
+        """
+        When the parse_args function is given the `--semver-precision` option
+        with a value less than one, it should exit with a return code of 2 and
+        inform the user of the issue.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            parse_args([
+                '--version', '1.2.3',
+                '--version-semver',
+                '--semver-precision', '-1',
+                'test-image:abc'
+            ])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r".*error: --semver-precision must be >= 1, not '-1'", re.DOTALL
         ))
 
     def test_semver_zero_requires_version_semver(self, capfd):
@@ -883,27 +924,6 @@ class TestMainFunc(object):
             'tag test-image:abc test-image:1.2-abc',
             'push test-image:1.2.3-abc',
             'push test-image:1.2-abc',
-        ])
-
-    def test_semver_precision_default(self, capfd):
-        """
-        When the --version-semver flag is used, but the --semver-precision
-        option is not, the semver precision should default to 1.
-        """
-        main([
-            '--executable', 'echo',
-            '--version', '1.2.3',
-            '--version-semver',
-            'test-image:abc'
-        ])
-
-        assert_output_lines(capfd, [
-            'tag test-image:abc test-image:1.2.3-abc',
-            'tag test-image:abc test-image:1.2-abc',
-            'tag test-image:abc test-image:1-abc',
-            'push test-image:1.2.3-abc',
-            'push test-image:1.2-abc',
-            'push test-image:1-abc',
         ])
 
     def test_many_tags(self, capfd):
