@@ -326,7 +326,46 @@ class DockerCiDeployRunner(object):
         self._docker_cmd(['push', tag])
 
 
-def main(raw_args=sys.argv[1:]):
+def main(argv=sys.argv[1:]):
+    args = parse_args(argv)
+
+    runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose,
+                                  executable=args.executable)
+
+    tag_generators = []
+    if args.tag is not None:
+        tag_generators.append(
+            ReplacementTagGenerator(chain.from_iterable(args.tag)))
+
+    if args.version:
+        if args.version_semver:
+            versions = generate_semver_versions(
+                args.version, args.semver_precision or 1, args.semver_zero)
+        else:
+            versions = [args.version]
+        tag_generators.append(
+            VersionTagGenerator(versions, latest=args.version_latest))
+
+    tag_generator = SequentialTagGenerator(tag_generators)
+    name_generator = (
+        RegistryNameGenerator(args.registry) if args.registry else None)
+    image_tag_generator = ImageTagGenerator(tag_generator, name_generator)
+
+    tag_map = [(image, image_tag_generator.generate_image_tags(image))
+               for image in args.image]
+
+    # Tag images
+    for image, push_tags in tag_map:
+        for push_tag in push_tags:
+            runner.docker_tag(image, push_tag)
+
+    # Push tags
+    for _, push_tags in tag_map:
+        for push_tag in push_tags:
+            runner.docker_push(push_tag)
+
+
+def parse_args(argv):
     parser = argparse.ArgumentParser(
         description='Tag and push Docker images to a registry.')
     parser.add_argument('-t', '--tag', nargs='+', action='append',
@@ -363,7 +402,7 @@ def main(raw_args=sys.argv[1:]):
 
     _add_deprecated_arguments(parser)
 
-    args = parser.parse_args(raw_args)
+    args = parser.parse_args(argv)
     _resolve_deprecated_arguments(args)
 
     if args.version_latest and not args.version:
@@ -376,40 +415,7 @@ def main(raw_args=sys.argv[1:]):
     if args.semver_zero and not args.version_semver:
         parser.error('the --semver-zero option requires --version-semver')
 
-    runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose,
-                                  executable=args.executable)
-
-    tag_generators = []
-    if args.tag is not None:
-        tag_generators.append(
-            ReplacementTagGenerator(chain.from_iterable(args.tag)))
-
-    if args.version:
-        if args.version_semver:
-            versions = generate_semver_versions(
-                args.version, args.semver_precision or 1, args.semver_zero)
-        else:
-            versions = [args.version]
-        tag_generators.append(
-            VersionTagGenerator(versions, latest=args.version_latest))
-
-    tag_generator = SequentialTagGenerator(tag_generators)
-    name_generator = (
-        RegistryNameGenerator(args.registry) if args.registry else None)
-    image_tag_generator = ImageTagGenerator(tag_generator, name_generator)
-
-    tag_map = [(image, image_tag_generator.generate_image_tags(image))
-               for image in args.image]
-
-    # Tag images
-    for image, push_tags in tag_map:
-        for push_tag in push_tags:
-            runner.docker_tag(image, push_tag)
-
-    # Push tags
-    for _, push_tags in tag_map:
-        for push_tag in push_tags:
-            runner.docker_push(push_tag)
+    return args
 
 
 def _add_deprecated_arguments(parser):

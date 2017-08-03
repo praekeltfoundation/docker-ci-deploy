@@ -9,8 +9,9 @@ from testtools.matchers import Equals, MatchesRegex, MatchesStructure
 
 from docker_ci_deploy.__main__ import (
     cmd, DockerCiDeployRunner, generate_semver_versions, ImageTagGenerator,
-    join_image_tag, main, RegistryNameGenerator, ReplacementTagGenerator,
-    SequentialTagGenerator, split_image_tag, VersionTagGenerator)
+    join_image_tag, main, parse_args, RegistryNameGenerator,
+    ReplacementTagGenerator, SequentialTagGenerator, split_image_tag,
+    VersionTagGenerator)
 
 
 class TestSplitImageTagFunc(object):
@@ -565,6 +566,273 @@ class TestDockerCiDeployRunner(object):
         assert_output_lines(capfd, ['docker push foo'])
 
 
+class TestParseArgsFunc(object):
+    def test_image_required(self, capfd):
+        """
+        When the parse_args function is given no image argument, it should exit
+        with a return code of 2 and inform the user of the missing argument.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            parse_args(['--tag', 'abc'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+
+        # More useful error message added to argparse in Python 3
+        if sys.version_info >= (3,):
+            # Use re.DOTALL so that '.*' also matches newlines
+            assert_that(err, MatchesRegex(
+                r'.*error: the following arguments are required: image$',
+                re.DOTALL
+            ))
+        else:
+            assert_that(
+                err, MatchesRegex(r'.*error: too few arguments$', re.DOTALL))
+
+    def test_version_latest_requires_version(self, capfd):
+        """
+        When the parse_args function is given the `--version-latest` option but
+        no `--version` option, it should exit with a return code of 2 and
+        inform the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            parse_args(['--version-latest', 'test-image:abc'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --version-latest option requires --version$',
+            re.DOTALL
+        ))
+
+    def test_version_latest_requires_non_empty_version(self, capfd):
+        """
+        When the parse_args function is given the `--version-latest` option and
+        an empty `--version` option, it should exit with a return code of 2 and
+        inform the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            parse_args(['--version-latest', '--version', '', 'test-image:abc'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --version-latest option requires --version$',
+            re.DOTALL
+        ))
+
+    def test_version_semver_requires_version(self, capfd):
+        """
+        When the parse_args function is given the `--version-semver` option but
+        no `--version` option, it should exit with a return code of 2 and
+        inform the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            parse_args(['--version-semver', 'test-image:abc'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --version-semver option requires --version$',
+            re.DOTALL
+        ))
+
+    def test_version_semver_requires_non_empty_version(self, capfd):
+        """
+        When the parse_args function is given the `--version-semver` option and
+        an empty `--version` option, it should exit with a return code of 2 and
+        inform the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            parse_args(['--version-semver', '--version', '', 'test-image:abc'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --version-semver option requires --version$',
+            re.DOTALL
+        ))
+
+    def test_semver_precision_requires_version_semver(self, capfd):
+        """
+        When the parse_args function is given the `--semver-precision` option
+        but no `--version-semver` option, it should exit with a return code of
+        2 and inform the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            parse_args(['--semver-precision', '2', 'test-image:abc'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --semver-precision option requires '
+            r'--version-semver$',
+            re.DOTALL
+        ))
+
+    def test_semver_zero_requires_version_semver(self, capfd):
+        """
+        When the parse_args function is given the `--semver-zero` option but no
+        `--version-semver` option, it should exit with a return code of 2 and
+        inform the user of the missing option.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            parse_args(['--semver-zero', 'test-image:abc'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: the --semver-zero option requires --version-semver$',
+            re.DOTALL
+        ))
+
+    def test_tag_requires_arguments(self, capfd):
+        """
+        When the parse_args function is given the `--tag` option without any
+        arguments, an error should be raised.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            parse_args(['--tag', '--', 'test-image'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: argument -t/--tag: expected at least one argument$',
+            re.DOTALL
+        ))
+
+    def test_version_semver_requires_argument(self, capfd):
+        """
+        When the parse_args function is given the `--version-semver` option
+        without an argument, an error should be raised.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            parse_args([
+                '--version', '1.2.3',
+                '--version-semver',
+                '--semver-precision',
+                '--', 'test-image',
+            ])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: argument -P/--semver-precision: expected one argument$',
+            re.DOTALL
+        ))
+
+    def test_registry_requires_argument(self, capfd):
+        """
+        When the parse_args function is given the `--registry` option without
+        an argument, an error should be raised.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            parse_args(['--registry', '--', 'test-image'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: argument -r/--registry: expected one argument$',
+            re.DOTALL
+        ))
+
+    def test_executable_requires_argument(self, capfd):
+        """
+        When the parse_args function is given the `--executable` option without
+        an argument, an error should be raised.
+        """
+        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
+            parse_args(['--executable', '--', 'test-image'])
+
+        out, err = capfd.readouterr()
+        assert_that(out, Equals(''))
+        assert_that(err, MatchesRegex(
+            r'.*error: argument --executable: expected one argument$',
+            re.DOTALL
+        ))
+
+    def test_deprecated_tag_version(self, capfd):
+        """
+        When the parse_args function is given the `--tag-version` option, the
+        option should be used as the `--version` option and a deprecation
+        warning should be printed.
+        """
+        args = parse_args([
+            '--executable', 'echo',
+            '--tag-version', '1.2.3',
+            'test-image',
+        ])
+
+        assert_that(args.version, Equals('1.2.3'))
+
+        assert_output_lines(capfd, [], [
+            ('DEPRECATED: the --tag-version option is deprecated and will be '
+             'removed in the next release. Please use --version instead')
+        ])
+
+    def test_deprecated_tag_latest(self, capfd):
+        """
+        When the parse_args function is given the `--tag-latest` option, the
+        option should be used as the `--version-latest` option and a
+        deprecation warning should be printed.
+        """
+        args = parse_args([
+            '--executable', 'echo',
+            '--version', '1.2.3',
+            '--tag-latest',
+            'test-image',
+        ])
+
+        assert_that(args.version_latest, Equals(True))
+
+        assert_output_lines(capfd, [], [
+            ('DEPRECATED: the --tag-latest option is deprecated and will be '
+             'removed in the next release. Please use --version-latest '
+             'instead')
+        ])
+
+    def test_deprecated_tag_semver(self, capfd):
+        """
+        When the parse_args function is given the `--tag-semver` option, the
+        option should be used as the `--version-semver` option and a
+        deprecation warning should be printed.
+        """
+        args = parse_args([
+            '--executable', 'echo',
+            '--version', '1.2.3',
+            '--tag-semver',
+            'test-image',
+        ])
+
+        assert_that(args.version_semver, Equals(True))
+
+        assert_output_lines(capfd, [], [
+            ('DEPRECATED: the --tag-semver option is deprecated and will be '
+             'removed in the next release. Please use --version-semver '
+             'instead')
+        ])
+
+    def test_version_take_precedence_over_deprecated_tag_version(self, capfd):
+        """
+        When the parse_args function is given the `--version` and
+        `--tag-version` options, the `--version` value takes precedence over
+        the `--tag-version` value.
+        """
+        args = parse_args([
+            '--executable', 'echo',
+            '--version', '1.2.3',
+            '--tag-version', '4.5.6',
+            'test-image',
+        ])
+
+        assert_that(args.version, Equals('1.2.3'))
+
+        assert_output_lines(capfd, [], [
+            ('DEPRECATED: the --tag-version option is deprecated and will be '
+             'removed in the next release. Please use --version instead')
+        ])
+
+
 class TestMainFunc(object):
     def test_args(self, capfd):
         """
@@ -638,125 +906,6 @@ class TestMainFunc(object):
             'push test-image:1-abc',
         ])
 
-    def test_image_required(self, capfd):
-        """
-        When the main function is given no image argument, it should exit with
-        a return code of 2 and inform the user of the missing argument.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--tag', 'abc'])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-
-        # More useful error message added to argparse in Python 3
-        if sys.version_info >= (3,):
-            # Use re.DOTALL so that '.*' also matches newlines
-            assert_that(err, MatchesRegex(
-                r'.*error: the following arguments are required: image$',
-                re.DOTALL
-            ))
-        else:
-            assert_that(
-                err, MatchesRegex(r'.*error: too few arguments$', re.DOTALL))
-
-    def test_version_latest_requires_version(self, capfd):
-        """
-        When the main function is given the `--version-latest` option but no
-        `--version` option, it should exit with a return code of 2 and inform
-        the user of the missing option.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--version-latest', 'test-image:abc'])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-        assert_that(err, MatchesRegex(
-            r'.*error: the --version-latest option requires --version$',
-            re.DOTALL
-        ))
-
-    def test_version_latest_requires_non_empty_version(self, capfd):
-        """
-        When the main function is given the `--version-latest` option and an
-        empty `--version` option, it should exit with a return code of 2 and
-        inform the user of the missing option.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--version-latest', '--version', '', 'test-image:abc'])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-        assert_that(err, MatchesRegex(
-            r'.*error: the --version-latest option requires --version$',
-            re.DOTALL
-        ))
-
-    def test_version_semver_requires_version(self, capfd):
-        """
-        When the main function is given the `--version-semver` option but no
-        `--version` option, it should exit with a return code of 2 and inform
-        the user of the missing option.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--version-semver', 'test-image:abc'])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-        assert_that(err, MatchesRegex(
-            r'.*error: the --version-semver option requires --version$',
-            re.DOTALL
-        ))
-
-    def test_version_semver_requires_non_empty_version(self, capfd):
-        """
-        When the main function is given the `--version-semver` option and an
-        empty `--version` option, it should exit with a return code of 2 and
-        inform the user of the missing option.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--version-semver', '--version', '', 'test-image:abc'])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-        assert_that(err, MatchesRegex(
-            r'.*error: the --version-semver option requires --version$',
-            re.DOTALL
-        ))
-
-    def test_semver_precision_requires_version_semver(self, capfd):
-        """
-        When the main function is given the `--semver-precision` option but no
-        `--version-semver` option, it should exit with a return code of 2 and
-        inform the user of the missing option.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--semver-precision', '2', 'test-image:abc'])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-        assert_that(err, MatchesRegex(
-            r'.*error: the --semver-precision option requires '
-            r'--version-semver$',
-            re.DOTALL
-        ))
-
-    def test_semver_zero_requires_version_semver(self, capfd):
-        """
-        When the main function is given the `--semver-zero` option but no
-        `--version-semver` option, it should exit with a return code of 2 and
-        inform the user of the missing option.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--semver-zero', 'test-image:abc'])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-        assert_that(err, MatchesRegex(
-            r'.*error: the --semver-zero option requires --version-semver$',
-            re.DOTALL
-        ))
-
     def test_many_tags(self, capfd):
         """
         When the main function is given multiple tag arguments in different
@@ -776,160 +925,4 @@ class TestMainFunc(object):
             'push test-image:abc',
             'push test-image:def',
             'push test-image:ghi'
-        ])
-
-    def test_tag_requires_arguments(self, capfd):
-        """
-        When the main function is given the `--tag` option without any
-        arguments, an error should be raised.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--tag', '--', 'test-image'])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-        assert_that(err, MatchesRegex(
-            r'.*error: argument -t/--tag: expected at least one argument$',
-            re.DOTALL
-        ))
-
-    def test_version_semver_requires_argument(self, capfd):
-        """
-        When the main function is given the `--version-semver` option without
-        an argument, an error should be raised.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main([
-                '--version', '1.2.3',
-                '--version-semver',
-                '--semver-precision',
-                '--', 'test-image',
-            ])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-        assert_that(err, MatchesRegex(
-            r'.*error: argument -P/--semver-precision: expected one argument$',
-            re.DOTALL
-        ))
-
-    def test_registry_requires_argument(self, capfd):
-        """
-        When the main function is given the `--registry` option without an
-        argument, an error should be raised.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--registry', '--', 'test-image'])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-        assert_that(err, MatchesRegex(
-            r'.*error: argument -r/--registry: expected one argument$',
-            re.DOTALL
-        ))
-
-    def test_executable_requires_argument(self, capfd):
-        """
-        When the main function is given the `--executable` option without an
-        argument, an error should be raised.
-        """
-        with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
-            main(['--executable', '--', 'test-image'])
-
-        out, err = capfd.readouterr()
-        assert_that(out, Equals(''))
-        assert_that(err, MatchesRegex(
-            r'.*error: argument --executable: expected one argument$',
-            re.DOTALL
-        ))
-
-    def test_deprecated_tag_version(self, capfd):
-        """
-        When the main function is given the `--tag-version` option, the option
-        should be used as the `--version` option and a deprecation warning
-        should be printed.
-        """
-        main([
-            '--executable', 'echo',
-            '--tag-version', '1.2.3',
-            'test-image',
-        ])
-
-        assert_output_lines(capfd, [
-            'tag test-image test-image:1.2.3',
-            'push test-image:1.2.3',
-        ], [
-            ('DEPRECATED: the --tag-version option is deprecated and will be '
-             'removed in the next release. Please use --version instead')
-        ])
-
-    def test_deprecated_tag_latest(self, capfd):
-        """
-        When the main function is given the `--tag-latest` option, the option
-        should be used as the `--version-latest` option and a deprecation
-        warning should be printed.
-        """
-        main([
-            '--executable', 'echo',
-            '--version', '1.2.3',
-            '--tag-latest',
-            'test-image',
-        ])
-
-        assert_output_lines(capfd, [
-            'tag test-image test-image:1.2.3',
-            'tag test-image test-image:latest',
-            'push test-image:1.2.3',
-            'push test-image:latest',
-        ], [
-            ('DEPRECATED: the --tag-latest option is deprecated and will be '
-             'removed in the next release. Please use --version-latest '
-             'instead')
-        ])
-
-    def test_deprecated_tag_semver(self, capfd):
-        """
-        When the main function is given the `--tag-semver` option, the option
-        should be used as the `--version-semver` option and a deprecation
-        warning should be printed.
-        """
-        main([
-            '--executable', 'echo',
-            '--version', '1.2.3',
-            '--tag-semver',
-            'test-image',
-        ])
-
-        assert_output_lines(capfd, [
-            'tag test-image test-image:1.2.3',
-            'tag test-image test-image:1.2',
-            'tag test-image test-image:1',
-            'push test-image:1.2.3',
-            'push test-image:1.2',
-            'push test-image:1',
-        ], [
-            ('DEPRECATED: the --tag-semver option is deprecated and will be '
-             'removed in the next release. Please use --version-semver '
-             'instead')
-        ])
-
-    def test_version_take_precedence_over_deprecated_tag_version(self, capfd):
-        """
-        When the main function is given the `--version` and `--tag-version`
-        options, the `--version` value takes precedence over the
-        `--tag-version` value.
-        """
-        main([
-            '--executable', 'echo',
-            '--version', '1.2.3',
-            '--tag-version', '4.5.6',
-            'test-image',
-        ])
-
-        assert_output_lines(capfd, [
-            'tag test-image test-image:1.2.3',
-            'push test-image:1.2.3',
-        ], [
-            ('DEPRECATED: the --tag-version option is deprecated and will be '
-             'removed in the next release. Please use --version instead')
         ])
