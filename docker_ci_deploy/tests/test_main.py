@@ -569,9 +569,8 @@ class TestDockerCiDeployRunner(object):
 class TestParseArgsFunc(object):
     def test_defaults(self):
         """
-        When the minimum set of required arguments (an image name) are passed
-        to the parse_args function, default values should be set for each
-        argument as expected.
+        When the minimum set of required arguments (an image name) are passed,
+        default values should be set for each argument as expected.
         """
         args = parse_args(['test-image'])
         assert_that(args, MatchesStructure.byEquality(
@@ -590,8 +589,8 @@ class TestParseArgsFunc(object):
 
     def test_image_required(self, capfd):
         """
-        When the parse_args function is given no image argument, it should exit
-        with a return code of 2 and inform the user of the missing argument.
+        When no image argument is given, it should exit with a return code of 2
+        and inform the user of the missing argument.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--tag', 'abc'])
@@ -612,9 +611,9 @@ class TestParseArgsFunc(object):
 
     def test_version_latest_requires_version(self, capfd):
         """
-        When the parse_args function is given the `--version-latest` option but
-        no `--version` option, it should exit with a return code of 2 and
-        inform the user of the missing option.
+        When the `--version-latest` option is given but no `--version` option,
+        it should exit with a return code of 2 and inform the user of the
+        missing option.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--version-latest', 'test-image:abc'])
@@ -628,9 +627,9 @@ class TestParseArgsFunc(object):
 
     def test_version_latest_requires_non_empty_version(self, capfd):
         """
-        When the parse_args function is given the `--version-latest` option and
-        an empty `--version` option, it should exit with a return code of 2 and
-        inform the user of the missing option.
+        When the `--version-latest` option and an empty `--version` option are
+        given, it should exit with a return code of 2 and inform the user of
+        the missing option.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--version-latest', '--version', '', 'test-image:abc'])
@@ -644,9 +643,9 @@ class TestParseArgsFunc(object):
 
     def test_version_semver_requires_version(self, capfd):
         """
-        When the parse_args function is given the `--version-semver` option but
-        no `--version` option, it should exit with a return code of 2 and
-        inform the user of the missing option.
+        When the `--version-semver` option but no `--version` option is given,
+        it should exit with a return code of 2 and inform the user of the
+        missing option.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--version-semver', 'test-image:abc'])
@@ -660,9 +659,9 @@ class TestParseArgsFunc(object):
 
     def test_version_semver_requires_non_empty_version(self, capfd):
         """
-        When the parse_args function is given the `--version-semver` option and
-        an empty `--version` option, it should exit with a return code of 2 and
-        inform the user of the missing option.
+        When the `--version-semver` option and an empty `--version` option are
+        given, it should exit with a return code of 2 and inform the user of
+        the missing option.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--version-semver', '--version', '', 'test-image:abc'])
@@ -676,9 +675,9 @@ class TestParseArgsFunc(object):
 
     def test_semver_precision_requires_version_semver(self, capfd):
         """
-        When the parse_args function is given the `--semver-precision` option
-        but no `--version-semver` option, it should exit with a return code of
-        2 and inform the user of the missing option.
+        When the `--semver-precision` option but no `--version-semver` option
+        is given, it should exit with a return code of 2 and inform the user of
+        the missing option.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--semver-precision', '2', 'test-image:abc'])
@@ -693,9 +692,9 @@ class TestParseArgsFunc(object):
 
     def test_semver_precision_requires_gr_eq_one(self, capfd):
         """
-        When the parse_args function is given the `--semver-precision` option
-        with a value less than one, it should exit with a return code of 2 and
-        inform the user of the issue.
+        When the `--semver-precision` option is given with a value less than
+        one, it should exit with a return code of 2 and inform the user of the
+        issue.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args([
@@ -713,9 +712,9 @@ class TestParseArgsFunc(object):
 
     def test_semver_zero_requires_version_semver(self, capfd):
         """
-        When the parse_args function is given the `--semver-zero` option but no
-        `--version-semver` option, it should exit with a return code of 2 and
-        inform the user of the missing option.
+        When the `--semver-zero` option but no `--version-semver` option is
+        given, it should exit with a return code of 2 and inform the user of
+        the missing option.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--semver-zero', 'test-image:abc'])
@@ -729,8 +728,8 @@ class TestParseArgsFunc(object):
 
     def test_tag_requires_arguments(self, capfd):
         """
-        When the parse_args function is given the `--tag` option without any
-        arguments, an error should be raised.
+        When the `--tag` option is given without any arguments, an error should
+        be raised.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--tag', '--', 'test-image'])
@@ -744,8 +743,8 @@ class TestParseArgsFunc(object):
 
     def test_version_semver_requires_argument(self, capfd):
         """
-        When the parse_args function is given the `--version-semver` option
-        without an argument, an error should be raised.
+        When the `--version-semver` option is given without an argument, an
+        error should be raised.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args([
@@ -764,8 +763,8 @@ class TestParseArgsFunc(object):
 
     def test_registry_requires_argument(self, capfd):
         """
-        When the parse_args function is given the `--registry` option without
-        an argument, an error should be raised.
+        When the `--registry` option is given without an argument, an error
+        should be raised.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--registry', '--', 'test-image'])
@@ -779,8 +778,8 @@ class TestParseArgsFunc(object):
 
     def test_executable_requires_argument(self, capfd):
         """
-        When the parse_args function is given the `--executable` option without
-        an argument, an error should be raised.
+        When the `--executable` option is given without an argument, an error
+        should be raised.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--executable', '--', 'test-image'])
@@ -794,9 +793,8 @@ class TestParseArgsFunc(object):
 
     def test_deprecated_tag_version(self, capfd):
         """
-        When the parse_args function is given the `--tag-version` option, the
-        option should be used as the `--version` option and a deprecation
-        warning should be printed.
+        When the `--tag-version` option is given, the option should be used as
+        the `--version` option and a deprecation warning should be printed.
         """
         args = parse_args([
             '--executable', 'echo',
@@ -813,9 +811,9 @@ class TestParseArgsFunc(object):
 
     def test_deprecated_tag_latest(self, capfd):
         """
-        When the parse_args function is given the `--tag-latest` option, the
-        option should be used as the `--version-latest` option and a
-        deprecation warning should be printed.
+        When the `--tag-latest` option is given, the option should be used as
+        the `--version-latest` option and a deprecation warning should be
+        printed.
         """
         args = parse_args([
             '--executable', 'echo',
@@ -834,9 +832,9 @@ class TestParseArgsFunc(object):
 
     def test_deprecated_tag_semver(self, capfd):
         """
-        When the parse_args function is given the `--tag-semver` option, the
-        option should be used as the `--version-semver` option and a
-        deprecation warning should be printed.
+        When the `--tag-semver` option is given, the option should be used as
+        the `--version-semver` option and a deprecation warning should be
+        printed.
         """
         args = parse_args([
             '--executable', 'echo',
@@ -855,9 +853,8 @@ class TestParseArgsFunc(object):
 
     def test_version_take_precedence_over_deprecated_tag_version(self, capfd):
         """
-        When the parse_args function is given the `--version` and
-        `--tag-version` options, the `--version` value takes precedence over
-        the `--tag-version` value.
+        When the `--version` and `--tag-version` options are given, the
+        `--version` value takes precedence over the `--tag-version` value.
         """
         args = parse_args([
             '--executable', 'echo',
