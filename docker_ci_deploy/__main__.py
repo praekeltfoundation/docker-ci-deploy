@@ -94,6 +94,15 @@ def _join_image_registry(image, registry):
     return '/'.join((registry, image))
 
 
+class ReplacementTagGenerator(object):
+    """ A tag generator that just returns its own list of tags. """
+    def __init__(self, tags):
+        self._tags = tags
+
+    def generate_tags(self, tag):
+        return list(self._tags)
+
+
 class VersionTagGenerator(object):
     def __init__(self, versions, latest=False):
         """
@@ -193,42 +202,42 @@ def generate_semver_versions(version, precision=1, zero=False):
     return sub_versions
 
 
-def generate_tags(image_tag, tags=None, version_tagger=None,
-                  registry_tagger=None):
-    """
-    Generate tags for the given image tag.
+class SequentialTagGenerator(object):
+    """ A tag generator that applies a sequence of tag generators. """
+    def __init__(self, generators):
+        """
+        :param generators:
+            A list of tag generators to apply in the order they should be
+            applied.
+        """
+        self._generators = generators
 
-    :param image:
-        A full source image tag.
-    :param tags:
-        A list of tags to tag the image with or None if no new tags are
-        required.
-    :param version_tagger:
-        The VersionTagGenerator instance to tag with.
-    :param registry_tagger:
-        The RegistryNameGenerator instance to tag with.
-    :return:
-        The list of tags for this image.
-    """
-    image, tag = split_image_tag(image_tag)
+    def generate_tags(self, tag):
+        tags = [tag]
+        for generator in self._generators:
+            tags = _apply_tag_generator(generator, tags)
+        return tags
 
-    # Replace registry in image name
-    if registry_tagger is not None:
-        registry_image = registry_tagger.generate_name(image)
-    else:
-        registry_image = image
 
-    # Add the version to any tags
-    new_tags = tags if tags is not None else [tag]
-    if version_tagger is not None:
-        version_tags = []
-        for new_tag in new_tags:
-            version_tags.extend(version_tagger.generate_tags(new_tag))
-    else:
-        version_tags = new_tags
+def _apply_tag_generator(generator, tags):
+    return [out_t for in_t in tags for out_t in generator.generate_tags(in_t)]
 
-    # Finally, rejoin the image name and tag parts
-    return [join_image_tag(registry_image, v_t) for v_t in version_tags]
+
+class ImageTagGenerator(object):
+    def __init__(self, tag_generator, name_generator):
+        self.tag_generator = tag_generator
+        self.name_generator = name_generator
+
+    def generate_image_tags(self, image_tag):
+        name, tag = split_image_tag(image_tag)
+
+        tags = self.tag_generator.generate_tags(tag)
+
+        if self.name_generator is not None:
+            name = self.name_generator.generate_name(name)
+
+        # Finally, rejoin the image name and tag parts
+        return [join_image_tag(name, t) for t in tags]
 
 
 def cmd(args):
@@ -352,8 +361,11 @@ def main(raw_args=sys.argv[1:]):
 
     runner = DockerCiDeployRunner(dry_run=args.dry_run, verbose=args.verbose,
                                   executable=args.executable)
-    # Flatten list of tags
-    tags = chain.from_iterable(args.tag) if args.tag is not None else None
+
+    tag_generators = []
+    if args.tag is not None:
+        tag_generators.append(
+            ReplacementTagGenerator(chain.from_iterable(args.tag)))
 
     if args.version:
         if args.version_semver:
@@ -361,19 +373,16 @@ def main(raw_args=sys.argv[1:]):
                 args.version, args.semver_precision or 1, args.semver_zero)
         else:
             versions = [args.version]
-        version_tagger = VersionTagGenerator(versions, args.version_latest)
-    else:
-        version_tagger = None
+        tag_generators.append(
+            VersionTagGenerator(versions, latest=args.version_latest))
 
-    if args.registry:
-        registry_tagger = RegistryNameGenerator(args.registry)
-    else:
-        registry_tagger = None
+    tag_generator = SequentialTagGenerator(tag_generators)
+    name_generator = (
+        RegistryNameGenerator(args.registry) if args.registry else None)
+    image_tag_generator = ImageTagGenerator(tag_generator, name_generator)
 
-    # Generate tags
-    def tagger(image):
-        return generate_tags(image, tags, version_tagger, registry_tagger)
-    tag_map = [(image, tagger(image)) for image in args.image]
+    tag_map = [(image, image_tag_generator.generate_image_tags(image))
+               for image in args.image]
 
     # Tag images
     for image, push_tags in tag_map:

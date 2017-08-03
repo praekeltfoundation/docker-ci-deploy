@@ -8,9 +8,9 @@ from testtools.assertions import assert_that
 from testtools.matchers import Equals, MatchesRegex, MatchesStructure
 
 from docker_ci_deploy.__main__ import (
-    cmd, DockerCiDeployRunner, generate_semver_versions, generate_tags,
-    join_image_tag, main, RegistryNameGenerator, split_image_tag,
-    VersionTagGenerator)
+    cmd, DockerCiDeployRunner, generate_semver_versions, ImageTagGenerator,
+    join_image_tag, main, RegistryNameGenerator, ReplacementTagGenerator,
+    SequentialTagGenerator, split_image_tag, VersionTagGenerator)
 
 
 class TestSplitImageTagFunc(object):
@@ -123,6 +123,17 @@ class TestRegistryNameGenerator(object):
         with ExpectedException(
                 ValueError, r"Unable to parse image name '%s'" % (image,)):
             RegistryNameGenerator('registry:5000').generate_name(image)
+
+
+class TestReplacementTagGenerator(object):
+    def test_replaces(self):
+        """
+        Given any tag, the list of tags that the generator was constructed with
+        are returned.
+        """
+        generator = ReplacementTagGenerator(['foo', 'bar'])
+        tags = generator.generate_tags('baz')
+        assert_that(tags, Equals(['foo', 'bar']))
 
 
 class TestGenerateSemverVersionsFunc(object):
@@ -290,6 +301,121 @@ class TestVersionTagGenerator(object):
         assert_that(tags, Equals(['1.2.3', 'latest']))
 
 
+class TestSequentialTagGenerator(object):
+    def test_no_generators(self):
+        """
+        When no tag generators are provided, the given tag is returned
+        unchanged in a list.
+        """
+        generator = SequentialTagGenerator([])
+        tags = generator.generate_tags('foo')
+        assert_that(tags, Equals(['foo']))
+
+    def test_one_generator(self):
+        """
+        When one tag generator is provided, the generator works the same as if
+        it were applied directly.
+        """
+        generator = SequentialTagGenerator([
+            VersionTagGenerator(['1.2.3', '1.2', '1'])
+        ])
+        tags = generator.generate_tags('foo')
+        assert_that(tags, Equals([
+            '1.2.3-foo',
+            '1.2-foo',
+            '1-foo',
+        ]))
+
+    def test_multiple_generators(self):
+        """
+        When multiple tag generators are provided, each tag generator is
+        applied sequentially to the result of the previous.
+        """
+        generator = SequentialTagGenerator([
+            ReplacementTagGenerator(['baz']),
+            VersionTagGenerator(['4.5.6'], latest=True),
+            VersionTagGenerator(['1.2.3', '1.2', '1']),
+        ])
+        tags = generator.generate_tags('foo')
+        assert_that(tags, Equals([
+            '1.2.3-4.5.6-baz',
+            '1.2-4.5.6-baz',
+            '1-4.5.6-baz',
+            '1.2.3-baz',
+            '1.2-baz',
+            '1-baz',
+        ]))
+
+    # FIXME?: The following 2 tests describe a weird, unintuitive edge case :-(
+    # Passing `--tag latest` with `--version <version>` but *not*
+    # `--version-latest` doesn't actually get you the tag 'latest' but rather
+    # effectively removes any existing tag.
+    def test_version_new_tag_is_latest(self, capfd):
+        """
+        When a version is provided as well as a new tag, and the new tag is
+        'latest', then the image should be tagged with the new version only.
+        """
+        generator = SequentialTagGenerator([
+            ReplacementTagGenerator(['latest']),
+            VersionTagGenerator(['1.2.3'])
+        ])
+        tags = generator.generate_tags('abc')
+
+        assert_that(tags, Equals(['1.2.3']))
+
+    def test_version_new_tag_is_latest_with_version(self, capfd):
+        """
+        When a version is provided as well as a new tag, and the new tag is
+        'latest' plus the version, then the image should be tagged with the
+        new version only.
+        """
+        generator = SequentialTagGenerator([
+            ReplacementTagGenerator(['1.2.3-latest']),
+            VersionTagGenerator(['1.2.3'])
+        ])
+        tags = generator.generate_tags('abc')
+
+        assert_that(tags, Equals(['1.2.3']))
+
+
+class TestImageTagGenerator(object):
+    def test_passthrough(self):
+        """
+        When the tag generator is an empty SequentialTagGenerator and the name
+        generator is None, image tags should be returned unchanged in a list.
+        """
+        tag_generator = SequentialTagGenerator([])
+        name_generator = None
+        generator = ImageTagGenerator(tag_generator, name_generator)
+
+        tags = generator.generate_image_tags('foo:bar')
+        assert_that(tags, Equals(['foo:bar']))
+
+    def test_tag_generator(self):
+        """
+        When there is a tag generator but the name generator is None, image
+        tags should be returned with changed tags, but unchanged names.
+        """
+        tag_generator = ReplacementTagGenerator(['baz', 'abc'])
+        name_generator = None
+        generator = ImageTagGenerator(tag_generator, name_generator)
+
+        tags = generator.generate_image_tags('foo:bar')
+        assert_that(tags, Equals(['foo:baz', 'foo:abc']))
+
+    def test_name_generator(self):
+        """
+        When there is a tag generator and a name generator, image tags should
+        be returned with changed tags and a changed name.
+        """
+        tag_generator = SequentialTagGenerator([])
+        name_generator = RegistryNameGenerator('localhost:5000')
+        generator = ImageTagGenerator(tag_generator, name_generator)
+
+        tags = generator.generate_image_tags('foo:bar')
+        assert_that(tags, Equals(['localhost:5000/foo:bar']))
+
+
 def assert_output_lines(capfd, stdout_lines, stderr_lines=[]):
     out, err = capfd.readouterr()
     if sys.version_info < (3,):
@@ -353,72 +479,6 @@ class TestCmdFunc(object):
             cmd(args)
 
         assert_output_lines(capfd, ['errored'], [])
-
-
-class TestGenerateTagsFunc(object):
-    def test_no_tags(self):
-        """
-        When no parameters are provided, and an image name without a tag is
-        passed, a list should be returned with the given image name unchanged.
-        """
-        tags = generate_tags('test-image')
-
-        assert_that(tags, Equals(['test-image']))
-
-    def test_no_tags_existing_tag(self):
-        """
-        When no parameters are provided, and an image tag with a tag is passed,
-        a list should be returned with the given image tag unchanged.
-        """
-        tags = generate_tags('test-image:abc')
-
-        assert_that(tags, Equals(['test-image:abc']))
-
-    def test_tags(self):
-        """
-        When the tags parameter is provided, and an image name without a tag is
-        passed, a list of image tags should be returned with the tags appended.
-        """
-        tags = generate_tags('test-image', tags=['abc', 'def'])
-
-        assert_that(tags, Equals(['test-image:abc', 'test-image:def']))
-
-    def test_tag_existing_tag(self):
-        """
-        When the tags parameter is provided, and an image tag with a tag is
-        passed, a list of image tags should be returned with the tag replaced
-        by the new tags.
-        """
-        tags = generate_tags('test-image:abc', tags=['def', 'ghi'])
-
-        assert_that(tags, Equals(['test-image:def', 'test-image:ghi']))
-
-    # FIXME?: The following 2 tests describe a weird, unintuitive edge case :-(
-    # Passing `--tag latest` with `--version <version>` but *not*
-    # `--version-latest` doesn't actually get you the tag 'latest' but rather
-    # effectively removes any existing tag.
-    def test_version_new_tag_is_latest(self, capfd):
-        """
-        When a version is provided as well as a new tag, and the new tag is
-        'latest', then the image should be tagged with the new version only.
-        """
-        version_tagger = VersionTagGenerator(['1.2.3'])
-        tags = generate_tags(
-            'test-image:abc', tags=['latest'], version_tagger=version_tagger)
-
-        assert_that(tags, Equals(['test-image:1.2.3']))
-
-    def test_version_new_tag_is_latest_with_version(self, capfd):
-        """
-        When a version is provided as well as a new tag, and the new tag is
-        'latest' plus the version, then the image should be tagged with the
-        new version only.
-        """
-        version_tagger = VersionTagGenerator(['1.2.3'])
-        tags = generate_tags('test-image:abc', tags=['1.2.3-latest'],
-                             version_tagger=version_tagger)
-
-        assert_that(tags, Equals(['test-image:1.2.3']))
 
 
 class TestDockerCiDeployRunner(object):
