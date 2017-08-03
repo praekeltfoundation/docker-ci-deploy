@@ -693,8 +693,7 @@ class TestParseArgsFunc(object):
     def test_semver_precision_requires_gr_eq_one(self, capfd):
         """
         When the `--semver-precision` option is given with a value less than
-        one, it should exit with a return code of 2 and inform the user of the
-        issue.
+        one,  an error should be raised.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args([
@@ -713,8 +712,7 @@ class TestParseArgsFunc(object):
     def test_semver_zero_requires_version_semver(self, capfd):
         """
         When the `--semver-zero` option but no `--version-semver` option is
-        given, it should exit with a return code of 2 and inform the user of
-        the missing option.
+        given,  an error should be raised.
         """
         with ExpectedException(SystemExit, MatchesStructure(code=Equals(2))):
             parse_args(['--semver-zero', 'test-image:abc'])
