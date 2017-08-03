@@ -66,6 +66,23 @@ def join_image_tag(image, tag):
     return ':'.join((image, tag))
 
 
+"""
+A note on terminology: there are several different things called 'generators':
+* NameGenerator:
+    - Method name: ``generate_name``
+    - Input: an image name (i.e. the part before the ':')
+    - Output: a new image name
+* TagGenerator:
+    - Method name: ``generate_tags``
+    - Input: an image tag (i.e. the part after the ':')
+    - Output: a *list* of new image tags
+* ImageTagGenerator:
+    - Method name: ``generate_image_tags``
+    - Input: a full image tag (in the form <name>:<tag>)
+    - Output: a *list* of new full image tags
+"""
+
+
 class RegistryNameGenerator(object):
     def __init__(self, registry):
         self._registry = registry
