@@ -66,11 +66,11 @@ def join_image_tag(image, tag):
     return ':'.join((image, tag))
 
 
-class RegistryTagger(object):
+class RegistryNameGenerator(object):
     def __init__(self, registry):
         self._registry = registry
 
-    def generate_tag(self, image):
+    def generate_name(self, image):
         # First try just append the registry without stripping the old
         joined_image = _join_image_registry(image, self._registry)
         # Check if that worked and return if so
@@ -94,7 +94,7 @@ def _join_image_registry(image, registry):
     return '/'.join((registry, image))
 
 
-class VersionTagger(object):
+class VersionTagGenerator(object):
     def __init__(self, versions, latest=False):
         """
         :param versions:
@@ -204,9 +204,9 @@ def generate_tags(image_tag, tags=None, version_tagger=None,
         A list of tags to tag the image with or None if no new tags are
         required.
     :param version_tagger:
-        The VersionTagger instance to tag with.
+        The VersionTagGenerator instance to tag with.
     :param registry_tagger:
-        The RegistryTagger instance to tag with.
+        The RegistryNameGenerator instance to tag with.
     :return:
         The list of tags for this image.
     """
@@ -214,7 +214,7 @@ def generate_tags(image_tag, tags=None, version_tagger=None,
 
     # Replace registry in image name
     if registry_tagger is not None:
-        registry_image = registry_tagger.generate_tag(image)
+        registry_image = registry_tagger.generate_name(image)
     else:
         registry_image = image
 
@@ -361,12 +361,12 @@ def main(raw_args=sys.argv[1:]):
                 args.version, args.semver_precision or 1, args.semver_zero)
         else:
             versions = [args.version]
-        version_tagger = VersionTagger(versions, args.version_latest)
+        version_tagger = VersionTagGenerator(versions, args.version_latest)
     else:
         version_tagger = None
 
     if args.registry:
-        registry_tagger = RegistryTagger(args.registry)
+        registry_tagger = RegistryNameGenerator(args.registry)
     else:
         registry_tagger = None
 

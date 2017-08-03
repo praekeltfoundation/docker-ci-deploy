@@ -8,8 +8,9 @@ from testtools.assertions import assert_that
 from testtools.matchers import Equals, MatchesRegex, MatchesStructure
 
 from docker_ci_deploy.__main__ import (
-    cmd, DockerCiDeployRunner, join_image_tag, main, RegistryTagger,
-    generate_tags, generate_semver_versions, VersionTagger, split_image_tag)
+    cmd, DockerCiDeployRunner, join_image_tag, main, RegistryNameGenerator,
+    generate_tags, generate_semver_versions, VersionTagGenerator,
+    split_image_tag)
 
 
 class TestSplitImageTagFunc(object):
@@ -85,13 +86,13 @@ class TestJoinImageTagFunc(object):
         assert_that(image_tag, Equals('bar'))
 
 
-class TestRegistryTagger(object):
+class TestRegistryNameGenerator(object):
     def test_image_without_registry(self):
         """
         When an image without a registry is provided, the registry should be
         prepended to the image with a '/' character.
         """
-        image = RegistryTagger('registry:5000').generate_tag('bar')
+        image = RegistryNameGenerator('registry:5000').generate_name('bar')
         assert_that(image, Equals('registry:5000/bar'))
 
     def test_image_with_registry(self):
@@ -99,7 +100,7 @@ class TestRegistryTagger(object):
         When an image is provided that already specifies a registry, that
         registry should be replaced with the given registry.
         """
-        image = RegistryTagger('registry2:5000').generate_tag(
+        image = RegistryNameGenerator('registry2:5000').generate_name(
             'registry:5000/bar')
         assert_that(image, Equals('registry2:5000/bar'))
 
@@ -109,7 +110,7 @@ class TestRegistryTagger(object):
         registry, the registry should just be prepended to the image name and
         returned, provided that the resulting image name is valid.
         """
-        image = RegistryTagger('registry:5000').generate_tag(
+        image = RegistryNameGenerator('registry:5000').generate_name(
             'praekeltorg/alpine-python')
         assert_that(image, Equals('registry:5000/praekeltorg/alpine-python'))
 
@@ -121,7 +122,7 @@ class TestRegistryTagger(object):
         image = 'foo:5000:port/name'
         with ExpectedException(
                 ValueError, r"Unable to parse image name '%s'" % (image,)):
-            RegistryTagger('registry:5000').generate_tag(image)
+            RegistryNameGenerator('registry:5000').generate_name(image)
 
 
 class TestGenerateSemverVersionsFunc(object):
@@ -202,14 +203,14 @@ class TestGenerateSemverVersionsFunc(object):
         assert_that(versions, Equals(['0']))
 
 
-class TestVersionTagger(object):
+class TestVersionTagGenerator(object):
     def test_tag_without_version(self):
         """
         When a tag does not start with the version, the version should be
         prepended to the tag with a '-' character.
         """
-        tagger = VersionTagger(['1.2.3'])
-        tags = tagger.generate_tags('foo')
+        generator = VersionTagGenerator(['1.2.3'])
+        tags = generator.generate_tags('foo')
         assert_that(tags, Equals(['1.2.3-foo']))
 
     def test_tag_with_version(self):
@@ -218,8 +219,8 @@ class TestVersionTagger(object):
         separator should be removed from the tag and the remaining tag
         processed.
         """
-        tagger = VersionTagger(['1.2.3', '1.2', '1'])
-        tags = tagger.generate_tags('1.2-foo')
+        generator = VersionTagGenerator(['1.2.3', '1.2', '1'])
+        tags = generator.generate_tags('1.2-foo')
         assert_that(tags, Equals(['1.2.3-foo', '1.2-foo', '1-foo']))
 
     def test_tag_is_version(self):
@@ -227,20 +228,20 @@ class TestVersionTagger(object):
         When a tag is equal to one of the versions, the versions should be
         returned.
         """
-        tagger = VersionTagger(['1.2.3', '1.2', '1'])
-        tags = tagger.generate_tags('1')
+        generator = VersionTagGenerator(['1.2.3', '1.2', '1'])
+        tags = generator.generate_tags('1')
         assert_that(tags, Equals(['1.2.3', '1.2', '1']))
 
     def test_tag_is_none(self):
         """ When a tag is None, the versions should be returned. """
-        tagger = VersionTagger(['1.2.3'])
-        tags = tagger.generate_tags(None)
+        generator = VersionTagGenerator(['1.2.3'])
+        tags = generator.generate_tags(None)
         assert_that(tags, Equals(['1.2.3']))
 
     def test_tag_is_latest(self):
         """ When the tag is 'latest', the versions should be returned. """
-        tagger = VersionTagger(['1.2.3'])
-        tags = tagger.generate_tags('latest')
+        generator = VersionTagGenerator(['1.2.3'])
+        tags = generator.generate_tags('latest')
         assert_that(tags, Equals(['1.2.3']))
 
     def test_latest(self):
@@ -248,8 +249,8 @@ class TestVersionTagger(object):
         When latest is True and a tag is provided, the versioned and
         unversioned tags should be returned.
         """
-        tagger = VersionTagger(['1.2.3'], latest=True)
-        tags = tagger.generate_tags('foo')
+        generator = VersionTagGenerator(['1.2.3'], latest=True)
+        tags = generator.generate_tags('foo')
         assert_that(tags, Equals(['1.2.3-foo', 'foo']))
 
     def test_latest_tag_with_version(self):
@@ -257,8 +258,8 @@ class TestVersionTagger(object):
         When latest is True and the tag already has the version prefixed, the
         tag and 'latest' tag should be returned.
         """
-        tagger = VersionTagger(['1.2.3'], latest=True)
-        tags = tagger.generate_tags('1.2.3-foo')
+        generator = VersionTagGenerator(['1.2.3'], latest=True)
+        tags = generator.generate_tags('1.2.3-foo')
         assert_that(tags, Equals(['1.2.3-foo', 'foo']))
 
     def test_latest_tag_is_version(self):
@@ -266,8 +267,8 @@ class TestVersionTagger(object):
         When latest is True and the tag is the version, the version and
         'latest' tag should be returned.
         """
-        tagger = VersionTagger(['1.2.3'], latest=True)
-        tags = tagger.generate_tags('1.2.3')
+        generator = VersionTagGenerator(['1.2.3'], latest=True)
+        tags = generator.generate_tags('1.2.3')
         assert_that(tags, Equals(['1.2.3', 'latest']))
 
     def test_latest_tag_is_none(self):
@@ -275,8 +276,8 @@ class TestVersionTagger(object):
         When latest is True and the tag is None, the version and 'latest' tag
         should be returned.
         """
-        tagger = VersionTagger(['1.2.3'], latest=True)
-        tags = tagger.generate_tags(None)
+        generator = VersionTagGenerator(['1.2.3'], latest=True)
+        tags = generator.generate_tags(None)
         assert_that(tags, Equals(['1.2.3', 'latest']))
 
     def test_latest_tag_is_latest(self):
@@ -284,8 +285,8 @@ class TestVersionTagger(object):
         When latest is True and the tag is 'latest', the version and 'latest'
         tag should be returned.
         """
-        tagger = VersionTagger(['1.2.3'], latest=True)
-        tags = tagger.generate_tags('latest')
+        generator = VersionTagGenerator(['1.2.3'], latest=True)
+        tags = generator.generate_tags('latest')
         assert_that(tags, Equals(['1.2.3', 'latest']))
 
 
@@ -401,7 +402,7 @@ class TestGenerateTagsFunc(object):
         When a version is provided as well as a new tag, and the new tag is
         'latest', then the image should be tagged with the new version only.
         """
-        version_tagger = VersionTagger(['1.2.3'])
+        version_tagger = VersionTagGenerator(['1.2.3'])
         tags = generate_tags(
             'test-image:abc', tags=['latest'], version_tagger=version_tagger)
 
@@ -413,7 +414,7 @@ class TestGenerateTagsFunc(object):
         'latest' plus the version, then the image should be tagged with the
         new version only.
         """
-        version_tagger = VersionTagger(['1.2.3'])
+        version_tagger = VersionTagGenerator(['1.2.3'])
         tags = generate_tags('test-image:abc', tags=['1.2.3-latest'],
                              version_tagger=version_tagger)
 
