@@ -137,9 +137,8 @@ The script could be used in any CI service that provides access to the standard 
 
 For Travis CI this config should get you started pushing images to Docker Hub:
 ```yaml
-sudo: required
-services:
-  - docker
+dist: xenial
+services: docker
 language: python
 env:
   global:
@@ -147,8 +146,6 @@ env:
     - secret: <encrypted> # DOCKER_PASS=pa$$word
 
 before_install:
-  - sudo apt-get update
-  - sudo apt-get install -o Dpkg::Options::="--force-confold" -y docker-engine
   - pip install docker-ci-deploy
 
 script:
