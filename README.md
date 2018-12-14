@@ -137,7 +137,6 @@ The script could be used in any CI service that provides access to the standard 
 
 For Travis CI this config should get you started pushing images to Docker Hub:
 ```yaml
-dist: xenial
 services: docker
 language: python
 env:
