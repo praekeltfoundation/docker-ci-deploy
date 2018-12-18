@@ -1,14 +1,12 @@
 language: python
+dist: xenial
 python:
   - '2.7'
   - '3.4'
   - '3.5'
   - '3.6'
+  - '3.7'
 cache: pip
-
-addons:
-  apt_packages:
-    - pandoc
 
 before_install:
   - pip install --upgrade pip
@@ -24,13 +22,24 @@ script:
 after_success:
   - codecov
 
-before_deploy:
-  - pandoc --from=markdown --to=rst --output=README.rst README.md
-deploy:
-  provider: pypi
-  user: praekelt.org
-  password:
-    secure: R/TvZbdVYF0dc2iL/Z5+oexFEBLDR2S2Yu/rGy/oj2x+7UG7a58Dd0IU7MyQM7L8DPjTlaPWWbjP6GeEtSNkR7mqgivnsV2oMpHZwA47uA3eopZdh7YGZ1opE5YBOpYjnlRD6rCsQuAXZSExgF85opoGjYEZDMrtP5gshwNcj28vxKNJz3VCoBwfeOxxEvUd/9uP7Ktci4v5EKTI+baNWHpe+e69haqyWX0uZhXeam42kXPfJLq3UjPRbMKXbqhvindPODtsprXpnSzfNb2frijUEZlZPxVJq15o3T+GJE8gx0gxmZTSIsNimdL4pCEydRDVtiCItLLJEgLuMD+RUmEuH5iVUmvch5t2A2GRzfD+bzNn8BCZAEkQKUWEwy7slL1v2NML0yxBQNF3Y2QrWbS0eBVNR2N/lTGyxzeHo28/GGrKIVENhH3S6u+gNK6JLYT4g0ZhBJ5ua+JPRMVfqh9vo9rQwXAU+RXV8sZgxX1QHi/6ezyF1aq37e+lhJkQv+KdA2LFl+sSSY/WHD0zH11b7+oAy9Wg5ds1KlE1TXxuEhOOHHuBHLhS3FN32FgE3x+iL4vryKwzwCRiTRDjQiLeIos18oO3y55/WLcER3kIewkj1BtdG+nGkeFtJV5fgNnA9XQM/SuixrHIselQLsfho5ife3iNITlEwvmNFMg=
-  on:
-    tags: true
-  distributions: sdist bdist_wheel
+jobs:
+  include:
+    - stage: release
+      if: tag IS present
+      addons:
+        apt_packages:
+          - pandoc
+      before_deploy:
+        - pandoc --from=markdown --to=rst --output=README.rst README.md
+      deploy:
+        provider: pypi
+        user: praekelt.org
+        password:
+          secure: R/TvZbdVYF0dc2iL/Z5+oexFEBLDR2S2Yu/rGy/oj2x+7UG7a58Dd0IU7MyQM7L8DPjTlaPWWbjP6GeEtSNkR7mqgivnsV2oMpHZwA47uA3eopZdh7YGZ1opE5YBOpYjnlRD6rCsQuAXZSExgF85opoGjYEZDMrtP5gshwNcj28vxKNJz3VCoBwfeOxxEvUd/9uP7Ktci4v5EKTI+baNWHpe+e69haqyWX0uZhXeam42kXPfJLq3UjPRbMKXbqhvindPODtsprXpnSzfNb2frijUEZlZPxVJq15o3T+GJE8gx0gxmZTSIsNimdL4pCEydRDVtiCItLLJEgLuMD+RUmEuH5iVUmvch5t2A2GRzfD+bzNn8BCZAEkQKUWEwy7slL1v2NML0yxBQNF3Y2QrWbS0eBVNR2N/lTGyxzeHo28/GGrKIVENhH3S6u+gNK6JLYT4g0ZhBJ5ua+JPRMVfqh9vo9rQwXAU+RXV8sZgxX1QHi/6ezyF1aq37e+lhJkQv+KdA2LFl+sSSY/WHD0zH11b7+oAy9Wg5ds1KlE1TXxuEhOOHHuBHLhS3FN32FgE3x+iL4vryKwzwCRiTRDjQiLeIos18oO3y55/WLcER3kIewkj1BtdG+nGkeFtJV5fgNnA9XQM/SuixrHIselQLsfho5ife3iNITlEwvmNFMg=
+        on:
+          tags: true
+        distributions: sdist bdist_wheel
+
+      before_install: skip
+      install: skip
+      script: skip
